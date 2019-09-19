@@ -1,5 +1,5 @@
 [![License CC BY-NC-SA 4.0](https://img.shields.io/badge/license-CC4.0-blue.svg)](https://raw.githubusercontent.com/NVIDIA/FastPhotoStyle/master/LICENSE.md)
-![Python 2.7](https://img.shields.io/badge/python-2.7-green.svg)
+![Python 3.6](https://img.shields.io/badge/python-3.6-green.svg)
 # Geometry-Aware Learning of Maps for Camera Localization 
 
 ## License
@@ -8,7 +8,7 @@ Copyright (C) 2018 NVIDIA Corporation.  All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode). 
 
 ## Documentation 
-
+( Forked from - https://github.com/NVlabs/geomapnet -- updated to python3.6 )
 This is the PyTorch implementation of our CVPR 2018 paper
 
 "[Geometry-Aware Learning of Maps for Camera Localization](https://arxiv.org/abs/1712.03342)" - CVPR 2018 (Spotlight). [Samarth Brahmbhatt](https://samarth-robo.github.io/), [Jinwei Gu](http://www.gujinwei.org/), [Kihwan Kim](https://www.cc.gatech.edu/~kihwan23/), [James Hays](https://www.cc.gatech.edu/~hays/), and [Jan Kautz](http://jankautz.com/)
