@@ -5,11 +5,11 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
  
 import sys
 
+
 class Logger(object):
     def __init__(self, filename="Default.log"):
         self.terminal = sys.stdout
-        bufsize = 0
-        self.log = open(filename, "w", bufsize)
+        self.log = open(filename, "w")
         
     def delink(self):
         self.log.close()

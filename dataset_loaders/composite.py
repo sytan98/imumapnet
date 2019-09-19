@@ -15,6 +15,7 @@ import sys
 sys.path.insert(0, '../')
 from common.pose_utils import calc_vos_simple, calc_vos_safe
 
+
 class MF(data.Dataset):
   """
   Returns multiple consecutive frames, and optionally VOs
