@@ -26,6 +26,7 @@ from models.posenet import PoseNet, MapNet
 from dataset_loaders.composite import MF, MFOnline
 
 from dataset_loaders.seven_scenes import SevenScenes
+from dataset_loaders.inloc import InLoc
 
 
 def parse_arguments():
@@ -153,6 +154,9 @@ if __name__ == '__main__':
             from dataset_loaders.robotcar import RobotCar
             train_set = RobotCar(train=True, **kwargs)
             val_set = RobotCar(train=False, **kwargs)
+        elif args.dataset == 'InLoc':
+            train_set = InLoc(train=True, **kwargs)
+            val_set = InLoc(train=False, **kwargs)
         else:
             raise NotImplementedError
     elif args.model.find('mapnet') >= 0:

@@ -3,16 +3,16 @@
 """
 
 import os
+import pdb
 import sys
 import os.path as osp
 import numpy as np
 from torch.utils import data
-from utils import load_image
 
 import pickle
 
-sys.path.insert(0, '../')  # check if needed
 from common.pose_utils import process_poses
+from dataset_loaders.utils import load_image
 
 
 class InLoc(data.Dataset):
@@ -40,7 +40,7 @@ class InLoc(data.Dataset):
 
         # directories
         base_dir = osp.join(osp.expanduser(data_path), scene)
-        data_dir = osp.join('..', 'data', '7Scenes', scene)
+        data_dir = osp.join('..', 'data', 'InLoc', scene)
 
         # decide which sequences to use
         if train:
@@ -48,7 +48,7 @@ class InLoc(data.Dataset):
         else:
             split_file = osp.join(base_dir, 'TestSplit.txt')
         with open(split_file, 'r') as f:
-            seqs = [int(l.split('sequence')[-1]) for l in f if not l.startswith('#')]
+            seqs = [l.strip() for l in f.readlines() if not l.startswith('#')]
 
         # read poses and collect image names
         self.c_imgs = []
@@ -57,11 +57,14 @@ class InLoc(data.Dataset):
         ps = {}
         vo_stats = {}
         gt_offset = int(0)
+
         for seq in seqs:
-            seq_dir = osp.join(base_dir, 'seq-{:02d}'.format(seq))
-            seq_data_dir = osp.join(data_dir, 'seq-{:02d}'.format(seq))
+            seq_dir = osp.join(base_dir, seq)
+            seq_data_dir = osp.join(data_dir, seq)
             p_filenames = [n for n in os.listdir(osp.join(seq_dir, '.')) if
                            n.find('pose') >= 0]
+            p_filenames.sort()
+            
             if real:
                 pose_file = osp.join(data_dir, '{:s}_poses'.format(vo_lib),
                                      'seq-{:02d}.txt'.format(seq))
@@ -78,22 +81,24 @@ class InLoc(data.Dataset):
                 # vo_stats[seq]['R'] = np.eye(3)
                 # vo_stats[seq]['t'] = np.zeros(3)
             else:
-                frame_idx = np.array(xrange(len(p_filenames)), dtype=np.int)
-                pss = [np.loadtxt(osp.join(seq_dir, 'frame-{:06d}.pose.txt'.
-                                           format(i))).flatten()[:12] for i in frame_idx]
+                frame_idx = np.array(range(len(p_filenames)), dtype=np.int)
+                pss = [np.loadtxt(osp.join(seq_dir, p_filenames[i])).flatten()[:12]
+                       for i in frame_idx]
                 ps[seq] = np.asarray(pss)
                 vo_stats[seq] = {'R': np.eye(3), 't': np.zeros(3), 's': 1}
 
             self.gt_idx = np.hstack((self.gt_idx, gt_offset + frame_idx))
             gt_offset += len(p_filenames)
-            c_imgs = [osp.join(seq_dir, 'frame-{:06d}.color.png'.format(i))
+                    
+            c_imgs = [osp.join(seq_dir, p_filenames[i].replace('pose.txt', 'color.png'))
                       for i in frame_idx]
-            d_imgs = [osp.join(seq_dir, 'frame-{:06d}.depth.png'.format(i))
+            d_imgs = [osp.join(seq_dir, p_filenames[i].replace('pose.txt', 'depth.png'))
                       for i in frame_idx]
             self.c_imgs.extend(c_imgs)
             self.d_imgs.extend(d_imgs)
 
         pose_stats_filename = osp.join(data_dir, 'pose_stats.txt')
+        os.makedirs(data_dir, exist_ok=True)
         if train and not real:
             mean_t = np.zeros(3)  # optionally, use the ps dictionary to calc stats
             std_t = np.ones(3)
@@ -104,6 +109,7 @@ class InLoc(data.Dataset):
         # convert pose to translation + log quaternion
         self.poses = np.empty((0, 6))
         for seq in seqs:
+            pdb.set_trace()
             pss = process_poses(poses_in=ps[seq], mean_t=mean_t, std_t=std_t,
                                 align_R=vo_stats[seq]['R'], align_t=vo_stats[seq]['t'],
                                 align_s=vo_stats[seq]['s'])
