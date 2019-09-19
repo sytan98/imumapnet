@@ -1,33 +1,26 @@
-"""
-Copyright (C) 2018 NVIDIA Corporation.  All rights reserved.
-Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
+"""Dataloader for InLoc Dataset.
+    Modified from seven_scenes.py
 """
 
-"""
-pytorch data loader for the 7-scenes dataset
-"""
 import os
+import sys
 import os.path as osp
 import numpy as np
 from torch.utils import data
+from utils import load_image
 
-import sys
 import pickle
 
-from common.vis_utils import show_batch, show_stereo_batch
-from torchvision.utils import make_grid
-import torchvision.transforms as transforms
-
+sys.path.insert(0, '../')  # check if needed
 from common.pose_utils import process_poses
-from dataset_loaders.utils import load_image
 
 
-class SevenScenes(data.Dataset):
+class InLoc(data.Dataset):
     def __init__(self, scene, data_path, train, transform=None,
                  target_transform=None, mode=0, seed=7, real=False,
                  skip_images=False, vo_lib='orbslam'):
         """
-        :param scene: scene name ['chess', 'pumpkin', ...]
+        :param scene: ['DUC'] supported for now
         :param data_path: root 7scenes data directory.
         Usually '../data/deepslam_data/7Scenes'
         :param train: if True, return the training images. If False, returns the
@@ -85,7 +78,7 @@ class SevenScenes(data.Dataset):
                 # vo_stats[seq]['R'] = np.eye(3)
                 # vo_stats[seq]['t'] = np.zeros(3)
             else:
-                frame_idx = np.array(range(len(p_filenames)), dtype=np.int)
+                frame_idx = np.array(xrange(len(p_filenames)), dtype=np.int)
                 pss = [np.loadtxt(osp.join(seq_dir, 'frame-{:06d}.pose.txt'.
                                            format(i))).flatten()[:12] for i in frame_idx]
                 ps[seq] = np.asarray(pss)
@@ -159,6 +152,7 @@ class SevenScenes(data.Dataset):
                 img = [self.transform(i) for i in img]
             else:
                 img = self.transform(img)
+
         return img, pose
 
     def __len__(self):
@@ -169,6 +163,9 @@ def main():
     """
     visualizes the dataset
     """
+    from common.vis_utils import show_batch, show_stereo_batch
+    from torchvision.utils import make_grid
+    import torchvision.transforms as transforms
     seq = 'chess'
     mode = 2
     num_workers = 6
@@ -181,8 +178,9 @@ def main():
     ])
     dset = SevenScenes(seq, '../data/deepslam_data/7Scenes', True, transform,
                        mode=mode)
-    print('Loaded 7Scenes sequence {:s}, length = {:d}'.format(seq,
-                                                               len(dset)))
+    print
+    'Loaded 7Scenes sequence {:s}, length = {:d}'.format(seq,
+                                                         len(dset))
 
     data_loader = data.DataLoader(dset, batch_size=10, shuffle=True,
                                   num_workers=num_workers)
@@ -190,7 +188,8 @@ def main():
     batch_count = 0
     N = 2
     for batch in data_loader:
-        print('Minibatch {:d}'.format(batch_count))
+        print
+        'Minibatch {:d}'.format(batch_count)
         if mode < 2:
             show_batch(make_grid(batch[0], nrow=1, padding=25, normalize=True))
         elif mode == 2:

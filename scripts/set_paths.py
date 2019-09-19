@@ -6,4 +6,4 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 import sys
 import os.path as osp
 sys.path.insert(0, '../')
-#sys.path.insert(0, osp.expanduser('~/usr/lib/python2.7/dist-packages/'))
+# sys.path.insert(0, osp.expanduser('~/usr/lib/python2.7/dist-packages/'))
