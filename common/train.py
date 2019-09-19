@@ -3,8 +3,9 @@ Copyright (C) 2018 NVIDIA Corporation.  All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
 
-import sys
 import os
+import sys
+import pdb
 import os.path as osp
 import time
 import configparser
@@ -60,7 +61,8 @@ def safe_collate(batch):
     :param batch: minibatch
     :return: minibatch filtered for None's
     """
-    batch = filter(lambda x: x is not None, batch)
+    # fix to work with python 3
+    batch = list(filter(lambda x: x is not None, batch))
     return default_collate(batch)
 
 
@@ -294,15 +296,15 @@ class Trainer(object):
                 if batch_idx % self.config['print_freq'] == 0:
                     n_iter = epoch * len(self.train_loader) + batch_idx
                     epoch_count = float(n_iter) / len(self.train_loader)
-                    print('Train {:s}: Epoch {:d}\t' \
-                          'Batch {:d}/{:d}\t' \
-                          'Data Time {:.4f} ({:.4f})\t' \
-                          'Batch Time {:.4f} ({:.4f})\t' \
-                          'Loss {:f}\t' \
-                          'lr: {:f}'. \
-                          format(self.experiment, epoch, batch_idx, len(self.train_loader) - 1,
-                                 train_data_time.val, train_data_time.avg, train_batch_time.val,
-                                 train_batch_time.avg, loss, lr))
+                    print('Train {:s}: Epoch {:d}\t'
+                          'Batch {:d}/{:d}\t'
+                          'Data Time {:.4f} ({:.4f})\t'
+                          'Batch Time {:.4f} ({:.4f})\t'
+                          'Loss {:f}\t'
+                          'lr: {:f}'.format(
+                            self.experiment, epoch, batch_idx, len(self.train_loader) - 1,
+                            train_data_time.val, train_data_time.avg, train_batch_time.val,
+                            train_batch_time.avg, loss, lr))
                     if self.config['log_visdom']:
                         self.vis.updateTrace(X=np.asarray([epoch_count]),
                                              Y=np.asarray([loss]), win=self.loss_win, name='train_loss',

@@ -5,10 +5,11 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
  
 import sys
 
+
 class Logger(object):
     def __init__(self, filename="Default.log"):
         self.terminal = sys.stdout
-        self.log = open(filename, "wb")
+        self.log = open(filename, "w")
         
     def delink(self):
         self.log.close()
