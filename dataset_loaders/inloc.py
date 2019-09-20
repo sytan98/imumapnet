@@ -109,7 +109,6 @@ class InLoc(data.Dataset):
         # convert pose to translation + log quaternion
         self.poses = np.empty((0, 6))
         for seq in seqs:
-            pdb.set_trace()
             pss = process_poses(poses_in=ps[seq], mean_t=mean_t, std_t=std_t,
                                 align_R=vo_stats[seq]['R'], align_t=vo_stats[seq]['t'],
                                 align_s=vo_stats[seq]['s'])

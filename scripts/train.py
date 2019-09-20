@@ -126,7 +126,12 @@ if __name__ == '__main__':
 
     data_dir = osp.join('..', 'data', args.dataset)
     stats_file = osp.join(data_dir, args.scene, 'stats.txt')
-    stats = np.loadtxt(stats_file)
+    try:
+        stats = np.loadtxt(stats_file)
+    except IOError as ex:
+        print('File not found: {}. Use dataset_mean.py to generate it!\n'
+              'Exception:\n{}'.format(stats_file, str(ex)))
+
     crop_size_file = osp.join(data_dir, 'crop_size.txt')
     crop_size = tuple(np.loadtxt(crop_size_file).astype(np.int))
     # transformers
