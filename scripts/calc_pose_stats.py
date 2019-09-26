@@ -15,10 +15,12 @@ import os.path as osp
 
 # config
 parser = argparse.ArgumentParser(description='Calculate pose translation stats')
-parser.add_argument('--dataset', type=str, choices=('7Scenes', 'InLoc', 'RobotCar'),
+parser.add_argument('--dataset', type=str, choices=('7Scenes', 'InLoc', 'InLocRes', 'RobotCar'),
                     help='Dataset')
 parser.add_argument('--scene', type=str, help='Scene name')
 args = parser.parse_args()
+import pdb
+pdb.set_trace()
 data_dir = osp.join('..', 'data', 'deepslam_data', args.dataset)
 
 # dataset loader
@@ -33,6 +35,8 @@ elif args.dataset == 'RobotCar':
     from dataset_loaders.robotcar import RobotCar
     dset = RobotCar(**kwargs)
 elif args.dataset == 'InLoc':
+    dset = InLoc(**kwargs)
+elif args.dataset == 'InLocRes':
     dset = InLoc(**kwargs)
 else:
     raise NotImplementedError
