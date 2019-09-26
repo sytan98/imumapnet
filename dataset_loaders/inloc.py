@@ -9,6 +9,8 @@ import os.path as osp
 import numpy as np
 from torch.utils import data
 
+from PIL import Image
+
 import pickle
 
 from common.pose_utils import process_poses
@@ -167,48 +169,69 @@ class InLoc(data.Dataset):
         return self.poses.shape[0]
 
 
-def main():
-    """
-    visualizes the dataset
-    """
-    from common.vis_utils import show_batch, show_stereo_batch
-    from torchvision.utils import make_grid
-    import torchvision.transforms as transforms
-    seq = 'chess'
-    mode = 2
-    num_workers = 6
-    transform = transforms.Compose([
-        transforms.Scale(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225])
-    ])
-    dset = SevenScenes(seq, '../data/deepslam_data/7Scenes', True, transform,
-                       mode=mode)
-    print
-    'Loaded 7Scenes sequence {:s}, length = {:d}'.format(seq,
-                                                         len(dset))
+class InLocQuery(data.Dataset):
+    def __init__(self, data_path, transform=None,
+                 scene='query', mode=0, seed=7, real=False, vo_lib='orbslam'):
+        """
+        :param scene: ['DUC'] supported for now
+        :param data_path: root 7scenes data directory.
+        Usually '../data/deepslam_data/7Scenes'
+        :param train: if True, return the training images. If False, returns the
+        testing images
+        :param transform: transform to apply to the images
+        :param target_transform: transform to apply to the poses
+        :param mode: 0: just color image, 1: just depth image, 2: [c_img, d_img]
+        :param real: If True, load poses from SLAM/integration of VO
+        :param skip_images: If True, skip loading images and return None instead
+        :param vo_lib: Library to use for VO (currently only 'dso')
+        """
+        self.mode = mode
+        self.transform = transform
+        np.random.seed(seed)
 
-    data_loader = data.DataLoader(dset, batch_size=10, shuffle=True,
-                                  num_workers=num_workers)
+        # directories
+        base_dir = osp.join(osp.expanduser(data_path), scene)
+        data_dir = osp.join('..', 'data', 'InLoc', scene)
 
-    batch_count = 0
-    N = 2
-    for batch in data_loader:
-        print
-        'Minibatch {:d}'.format(batch_count)
-        if mode < 2:
-            show_batch(make_grid(batch[0], nrow=1, padding=25, normalize=True))
-        elif mode == 2:
-            lb = make_grid(batch[0][0], nrow=1, padding=25, normalize=True)
-            rb = make_grid(batch[0][1], nrow=1, padding=25, normalize=True)
-            show_stereo_batch(lb, rb)
+        # read poses and collect image names
+        img_dir = osp.join(base_dir, 'iphone7')
+        self.c_imgs = [osp.join(img_dir, x) for x in os.listdir(img_dir)
+                       if x.endswith('.JPG')]
+        self.c_imgs.sort()
 
-        batch_count += 1
-        if batch_count >= N:
-            break
+    def __getitem__(self, index):
+        if self.mode == 0:
+            img = None
+            while img is None:
+                with open(self.c_imgs[index], 'rb') as f:
+                    img = Image.open(f).convert('RGB')
+                index += 1
+            index -= 1
+        elif self.mode == 1:
+            img = None
+            while img is None:
+                img = load_image(self.d_imgs[index])
+                index += 1
+            index -= 1
+        elif self.mode == 2:
+            c_img = None
+            d_img = None
+            while (c_img is None) or (d_img is None):
+                c_img = load_image(self.c_imgs[index])
+                d_img = load_image(self.d_imgs[index])
+                index += 1
+            img = [c_img, d_img]
+            index -= 1
+        else:
+            raise Exception('Wrong mode {:d}'.format(self.mode))
 
+        if self.transform is not None:
+            if self.mode == 2:
+                img = [self.transform(i) for i in img]
+            else:
+                img = self.transform(img)
 
-if __name__ == '__main__':
-    main()
+        return img, os.path.basename(self.c_imgs[index])
+
+    def __len__(self):
+        return len(self.c_imgs)
