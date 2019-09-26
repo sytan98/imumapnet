@@ -91,6 +91,8 @@ class MF(data.Dataset):
                  vos: (STEPS-1) x 7 (only if include_vos = True)
         """
         idx = self.get_indices(index)
+        import pdb
+        pdb.set_trace()
         clip = [self.dset[i] for i in idx]
 
         imgs = torch.stack([c[0] for c in clip], dim=0)

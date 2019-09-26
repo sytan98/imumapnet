@@ -126,6 +126,7 @@ if __name__ == '__main__':
     kwargs = dict(scene=args.scene, data_path=data_dir,
                   transform=data_transform, seed=seed)
     if (args.model.find('mapnet') >= 0) or args.pose_graph:
+        kwargs['train'] = False
         if args.pose_graph:
             assert real
             kwargs = dict(kwargs, vo_lib=vo_lib)

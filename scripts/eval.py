@@ -153,7 +153,7 @@ if __name__ == '__main__':
     batch_size = 1
     assert batch_size == 1
     loader = DataLoader(data_set, batch_size=batch_size, shuffle=False,
-                        num_workers=5, pin_memory=True)
+                        num_workers=0, pin_memory=True)
 
     # activate GPUs
     CUDA = torch.cuda.is_available()
@@ -166,7 +166,10 @@ if __name__ == '__main__':
     targ_poses = np.zeros((L, 7))  # store all target poses
 
     # inference loop
+    im_names = []
     for batch_idx, (data, target) in enumerate(loader):
+        import pdb
+        pdb.set_trace()
         if batch_idx % 200 == 0:
             print('Image {:d} / {:d}'.format(batch_idx, len(loader)))
 
@@ -203,6 +206,13 @@ if __name__ == '__main__':
         # take the middle prediction
         pred_poses[idx, :] = output[len(output) // 2]
         targ_poses[idx, :] = target[len(target) // 2]
+
+    import pdb
+    pdb.set_trace()
+    with open('logs/pred_poses_{}_{}.txt'.format(
+            args.model, args.dataset, args.scene), 'w') as f:
+        for ii in range(len(data_set)):
+            f.write('{}\n'.format(' '.join(['{:.6f}'.format(x) for x in pred_poses[ii, :]])))
 
     # calculate losses
     t_loss = np.asarray([t_criterion(p, t) for p, t in zip(pred_poses[:, :3],

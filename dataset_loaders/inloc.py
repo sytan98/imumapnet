@@ -117,6 +117,7 @@ class InLoc(data.Dataset):
             self.poses = np.vstack((self.poses, pss))
 
     def __getitem__(self, index):
+
         if self.skip_images:
             img = None
             pose = self.poses[index]
@@ -193,7 +194,7 @@ class InLocQuery(data.Dataset):
         # read poses and collect image names
         img_dir = osp.join(base_dir, 'iphone7')
         self.c_imgs = [osp.join(img_dir, x) for x in os.listdir(img_dir)
-                       if x.endswith('.JPG')]
+                       if x.endswith('.JPG') or x.endswith('.color.png')]
         self.c_imgs.sort()
 
     def __getitem__(self, index):
