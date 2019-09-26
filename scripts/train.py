@@ -33,7 +33,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Training script for PoseNet and'
                                                  'MapNet variants')
     parser.add_argument('--dataset', type=str,
-                        choices=('7Scenes', 'InLoc', 'RobotCar'),
+                        choices=('7Scenes', 'InLoc', 'InLocRes', 'RobotCar'),
                         help='Dataset')
     parser.add_argument('--scene', type=str, help='Scene name')
     parser.add_argument('--config_file', type=str, help='configuration file')
@@ -160,6 +160,9 @@ if __name__ == '__main__':
             train_set = RobotCar(train=True, **kwargs)
             val_set = RobotCar(train=False, **kwargs)
         elif args.dataset == 'InLoc':
+            train_set = InLoc(train=True, **kwargs)
+            val_set = InLoc(train=False, **kwargs)
+        elif args.dataset == 'InLocRes':
             train_set = InLoc(train=True, **kwargs)
             val_set = InLoc(train=False, **kwargs)
         else:

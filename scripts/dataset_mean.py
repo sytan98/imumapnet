@@ -23,7 +23,7 @@ from common.train import safe_collate
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Dataset images statistics')
-    parser.add_argument('--dataset', type=str, choices=('7Scenes', 'InLoc', 'RobotCar'),
+    parser.add_argument('--dataset', type=str, choices=('7Scenes', 'InLoc', 'InLocRes', 'RobotCar'),
                         help='Dataset', required=True)
     parser.add_argument('--scene', type=str, help='Scene name', required=True)
     args = parser.parse_args()
@@ -43,7 +43,7 @@ if __name__ == '__main__':
                   transform=data_transform)
     if args.dataset == '7Scenes':
         dset = SevenScenes(**kwargs)
-    elif args.dataset == 'InLoc':
+    elif args.dataset == 'InLoc' or args.dataset == 'InLocRes':
         dset = InLoc(**kwargs)
     elif args.dataset == 'RobotCar':
         from dataset_loaders.robotcar import RobotCar

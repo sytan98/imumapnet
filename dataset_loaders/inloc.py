@@ -40,7 +40,10 @@ class InLoc(data.Dataset):
 
         # directories
         base_dir = osp.join(osp.expanduser(data_path), scene)
+
         data_dir = osp.join('..', 'data', 'InLoc', scene)
+        if 'InLocRes' in base_dir:
+            data_dir = osp.join('..', 'data', 'InLocRes', scene)
 
         # decide which sequences to use
         if train:
@@ -89,7 +92,7 @@ class InLoc(data.Dataset):
 
             self.gt_idx = np.hstack((self.gt_idx, gt_offset + frame_idx))
             gt_offset += len(p_filenames)
-                    
+
             c_imgs = [osp.join(seq_dir, p_filenames[i].replace('pose.txt', 'color.png'))
                       for i in frame_idx]
             d_imgs = [osp.join(seq_dir, p_filenames[i].replace('pose.txt', 'depth.png'))

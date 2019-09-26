@@ -56,6 +56,13 @@ class MF(data.Dataset):
                 # This might not work
                 self.gt_dset = InLoc(
                     *args, skip_images=True, real=False, **kwargs)
+        elif dataset == 'InLocRes':
+            from dataset_loaders.inloc import InLoc
+            self.dset = InLoc(*args, real=self.real, **kwargs)
+            if self.include_vos and self.real:
+                # This might not work
+                self.gt_dset = InLoc(
+                    *args, skip_images=True, real=False, **kwargs)
         elif dataset == 'RobotCar':
             from dataset_loaders.robotcar import RobotCar
             self.dset = RobotCar(*args, real=self.real, **kwargs)
