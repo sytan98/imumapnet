@@ -3,6 +3,8 @@ Copyright (C) 2018 NVIDIA Corporation.  All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
 
+import pdb
+
 import set_paths
 from models.posenet import PoseNet, MapNet
 from common.train import load_state_dict, step_feedfwd
@@ -36,7 +38,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Evaluation script for PoseNet and'
                                                  'MapNet variants')
     parser.add_argument('--dataset', type=str,
-                        default='InLoc')
+                        default='InLocRes')
     parser.add_argument('--scene', type=str, help='Scene name')
     parser.add_argument('--weights', type=str, help='trained weights to load')
     parser.add_argument('--model', choices=('posenet', 'mapnet', 'mapnet++'),
@@ -135,7 +137,7 @@ if __name__ == '__main__':
                       variable_skip=variable_skip, include_vos=args.pose_graph,
                       vo_func=vo_func, no_duplicates=False, **kwargs)
         L = len(data_set.dset)
-    elif args.dataset == 'InLoc':
+    elif args.dataset == 'InLoc' or args.dataset == 'InLocRes':
         data_set = InLocQuery(**kwargs)
         L = len(data_set)
     else:
@@ -158,7 +160,8 @@ if __name__ == '__main__':
 
     # inference loop
     fnames = []
-    for batch_idx, (data, fname) in enumerate(loader):
+    for batch_idx, data in enumerate(loader):
+        pdb.set_trace()
         if batch_idx % 200 == 0:
             print('Image {:d} / {:d}'.format(batch_idx, len(loader)))
 
@@ -171,7 +174,6 @@ if __name__ == '__main__':
 
         # output : 1 x 6 or 1 x STEPS x 6
         _, output = step_feedfwd(data, model, CUDA, train=False)
-        fnames += fname
         s = output.size()
         output = output.cpu().data.numpy().reshape((-1, s[-1]))
 

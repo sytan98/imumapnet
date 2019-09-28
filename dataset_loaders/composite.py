@@ -57,8 +57,8 @@ class MF(data.Dataset):
                 self.gt_dset = InLoc(
                     *args, skip_images=True, real=False, **kwargs)
         elif dataset == 'InLocRes':
-            from dataset_loaders.inloc import InLoc
-            self.dset = InLoc(*args, real=self.real, **kwargs)
+            from dataset_loaders.inloc import InLocQuery
+            self.dset = InLocQuery(*args, real=self.real, **kwargs)
             if self.include_vos and self.real:
                 # This might not work
                 self.gt_dset = InLoc(
@@ -98,12 +98,13 @@ class MF(data.Dataset):
                  vos: (STEPS-1) x 7 (only if include_vos = True)
         """
         idx = self.get_indices(index)
-        import pdb
-        pdb.set_trace()
         clip = [self.dset[i] for i in idx]
 
-        imgs = torch.stack([c[0] for c in clip], dim=0)
-        poses = torch.stack([c[1] for c in clip], dim=0)
+       
+        imgs = torch.stack([c for c in clip], dim=0)
+        #poses = torch.from_numpy(np.stack([c[1] for c in clip], axis=0))
+       
+        
         if self.include_vos:
             # vos = calc_vos_simple(poses.unsqueeze(0))[0] if self.train else \
             #   calc_vos_safe(poses.unsqueeze(0))[0]
@@ -113,7 +114,7 @@ class MF(data.Dataset):
                 poses = torch.stack([c[1] for c in clip], dim=0)
             poses = torch.cat((poses, vos), dim=0)
 
-        return imgs, poses
+        return imgs
 
     def __len__(self):
         L = len(self.dset)

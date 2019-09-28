@@ -114,6 +114,7 @@ class InLoc(data.Dataset):
         # convert pose to translation + log quaternion
         self.poses = np.empty((0, 6))
         for seq in seqs:
+            pdb.set_trace()
             pss = process_poses(poses_in=ps[seq], mean_t=mean_t, std_t=std_t,
                                 align_R=vo_stats[seq]['R'], align_t=vo_stats[seq]['t'],
                                 align_s=vo_stats[seq]['s'])
@@ -171,8 +172,9 @@ class InLoc(data.Dataset):
 
 
 class InLocQuery(data.Dataset):
-    def __init__(self, data_path, transform=None,
-                 scene='query', mode=0, seed=7, real=False, vo_lib='orbslam'):
+    def __init__(self, data_path, transform=None, train=False,
+                 scene='query', mode=0, seed=7, real=False, vo_lib='orbslam',
+                 target_transform=None):
         """
         :param scene: ['DUC'] supported for now
         :param data_path: root 7scenes data directory.
@@ -192,7 +194,7 @@ class InLocQuery(data.Dataset):
 
         # directories
         base_dir = osp.join(osp.expanduser(data_path), scene)
-        data_dir = osp.join('..', 'data', 'InLoc', scene)
+        data_dir = osp.join('..', 'data', 'InLocRes', scene)
 
         # read poses and collect image names
         img_dir = osp.join(base_dir, 'iphone7')
@@ -232,7 +234,7 @@ class InLocQuery(data.Dataset):
             else:
                 img = self.transform(img)
 
-        return img, os.path.basename(self.c_imgs[index])
+        return img
 
     def __len__(self):
         return len(self.c_imgs)
