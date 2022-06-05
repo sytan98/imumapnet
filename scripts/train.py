@@ -140,7 +140,7 @@ if __name__ == '__main__':
         stats = get_imagenet_mean_std()
 
     crop_size_file = osp.join(data_dir, 'crop_size.txt')
-    crop_size = tuple(np.loadtxt(crop_size_file).astype(np.int))
+    crop_size = tuple(np.loadtxt(crop_size_file).astype(int))
 
     # transformers
     tforms = [transforms.Resize(256)]

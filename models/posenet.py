@@ -13,7 +13,7 @@ import torch.nn.init
 import numpy as np
 
 import os
-os.environ['TORCH_MODEL_ZOO'] = os.path.join('..', 'data', 'models')
+os.environ['TORCH_HOME'] = os.path.join('..', 'data', 'models')
 
 import sys
 sys.path.insert(0, '../')
