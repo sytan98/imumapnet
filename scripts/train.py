@@ -20,8 +20,9 @@ from torchvision import transforms, models
 
 from common.train import Trainer
 from common.optimizer import Optimizer
-from common.criterion import (PoseNetCriterion, MapNetCriterion,
+from common.criterion import (PoseNetCriterion, MapNetCriterion, MapNetWithIMUCriterion,
                               MapNetOnlineCriterion)
+from common.data_utils import get_imagenet_mean_std
 from models.posenet import PoseNet, MapNet
 from dataset_loaders.composite import MF, MFOnline
 
@@ -33,8 +34,11 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Training script for PoseNet and'
                                                  'MapNet variants')
     parser.add_argument('--dataset', type=str,
-                        choices=('7Scenes', 'InLoc', 'InLocRes', 'RobotCar'),
+                        choices=('AirSim', '7Scenes', 'InLoc', 'InLocRes', 'RobotCar'),
                         help='Dataset')
+    parser.add_argument('--imu_mode', type=str, default='None',
+                        choices=('None', 'Average', 'Separate', 'Position', 'Orientation'),
+                        help='imu incorporation')
     parser.add_argument('--scene', type=str, help='Scene name')
     parser.add_argument('--config_file', type=str, help='configuration file')
     parser.add_argument('--model', choices=('posenet', 'mapnet', 'mapnet++'),
@@ -108,8 +112,12 @@ if __name__ == '__main__':
             train_criterion = MapNetOnlineCriterion(**kwargs)
             val_criterion = MapNetOnlineCriterion()
         else:
-            train_criterion = MapNetCriterion(**kwargs)
-            val_criterion = MapNetCriterion()
+            if args.imu_mode == 'None':
+                train_criterion = MapNetCriterion(**kwargs)
+                val_criterion = MapNetCriterion()
+            elif args.imu_mode == 'Position':
+                train_criterion = MapNetWithIMUCriterion(**kwargs)
+                val_criterion = MapNetWithIMUCriterion()
     else:
         raise NotImplementedError
 
@@ -129,11 +137,11 @@ if __name__ == '__main__':
     try:
         stats = np.loadtxt(stats_file)
     except IOError as ex:
-        print('File not found: {}. Use dataset_mean.py to generate it!\n'
-              'Exception:\n{}'.format(stats_file, str(ex)))
+        stats = get_imagenet_mean_std()
 
     crop_size_file = osp.join(data_dir, 'crop_size.txt')
     crop_size = tuple(np.loadtxt(crop_size_file).astype(np.int))
+
     # transformers
     tforms = [transforms.Resize(256)]
     if color_jitter > 0:
@@ -147,9 +155,11 @@ if __name__ == '__main__':
     target_transform = transforms.Lambda(lambda x: torch.from_numpy(x).float())
 
     # datasets
-    data_dir = osp.join('..', 'data', 'deepslam_data', args.dataset)
+    # data_dir = osp.join('..', 'data', 'deepslam_data', args.dataset)
+    data_dir = 'D:/Imperial/FYP/captured_data/airsim_drone_mode/relative_pose/'
     kwargs = dict(scene=args.scene, data_path=data_dir, transform=data_transform,
                   target_transform=target_transform, seed=seed)
+    # if model being tested is posenet
     if args.model == 'posenet':
         if args.dataset == '7Scenes':
             train_set = SevenScenes(train=True, **kwargs)
@@ -167,6 +177,8 @@ if __name__ == '__main__':
             val_set = InLoc(train=False, **kwargs)
         else:
             raise NotImplementedError
+    
+    # MapNet data loaders managed here
     elif args.model.find('mapnet') >= 0:
         kwargs = dict(kwargs, dataset=args.dataset, skip=skip, steps=steps,
                       variable_skip=variable_skip)
@@ -174,8 +186,12 @@ if __name__ == '__main__':
             train_set = MFOnline(vo_lib=vo_lib, gps_mode=(vo_lib == 'gps'), **kwargs)
             val_set = None
         else:
-            train_set = MF(train=True, real=real, **kwargs)
-            val_set = MF(train=False, real=real, **kwargs)
+            if args.imu_mode == 'None':
+                train_set = MF(train=True, real=real, **kwargs)
+                val_set = MF(train=False, real=real, **kwargs)
+            else: 
+                train_set = MF(train=True, real=real, include_imu=True, **kwargs)
+                val_set = MF(train=False, real=real, include_imu=True, **kwargs)
     else:
         raise NotImplementedError
 
@@ -190,8 +206,8 @@ if __name__ == '__main__':
         experiment_name = '{:s}_learn_gamma'.format(experiment_name)
     experiment_name += args.suffix
     trainer = Trainer(model, optimizer, train_criterion, args.config_file,
-                      experiment_name, train_set, val_set, device=args.device,
+                      experiment_name, train_set, val_set, device=args.device, imu_mode=args.imu_mode,
                       checkpoint_file=args.checkpoint,
-                      resume_optim=args.resume_optim, val_criterion=val_criterion)
+                      resume_optim=args.resume_optim, val_criterion=val_criterion,)
     lstm = args.model == 'vidloc'
     trainer.train_val(lstm=lstm)

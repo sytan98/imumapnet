@@ -22,7 +22,7 @@ class MF(data.Dataset):
     Returns multiple consecutive frames, and optionally VOs
     """
 
-    def __init__(self, dataset, include_vos=False, no_duplicates=False,
+    def __init__(self, dataset, include_vos=False, no_duplicates=False, include_imu = False,
                  *args, **kwargs):
         """
         :param steps: Number of frames to return on every call
@@ -39,11 +39,15 @@ class MF(data.Dataset):
         self.variable_skip = kwargs.pop('variable_skip', False)
         self.real = kwargs.pop('real', False)
         self.include_vos = include_vos
+        self.include_imu = include_imu
         self.train = kwargs['train']
         self.vo_func = kwargs.pop('vo_func', calc_vos_simple)
         self.no_duplicates = no_duplicates
-
-        if dataset == '7Scenes':
+        
+        if dataset == 'AirSim':
+            from dataset_loaders.airsim import AirSim
+            self.dset = AirSim(*args, real=self.real, **kwargs)
+        elif dataset == '7Scenes':
             from dataset_loaders.seven_scenes import SevenScenes
             self.dset = SevenScenes(*args, real=self.real, **kwargs)
             if self.include_vos and self.real:
@@ -101,8 +105,8 @@ class MF(data.Dataset):
         clip = [self.dset[i] for i in idx]
 
        
-        imgs = torch.stack([c for c in clip], dim=0)
-        #poses = torch.from_numpy(np.stack([c[1] for c in clip], axis=0))
+        imgs  = torch.stack([c[0] for c in clip], dim=0)
+        poses = torch.stack([c[1] for c in clip], dim=0)
        
         
         if self.include_vos:
@@ -114,7 +118,11 @@ class MF(data.Dataset):
                 poses = torch.stack([c[1] for c in clip], dim=0)
             poses = torch.cat((poses, vos), dim=0)
 
-        return imgs
+        if self.include_imu:
+            imu_data = torch.stack([c[2] for c in clip], dim=0)
+            poses = (poses, imu_data)
+
+        return imgs, poses
 
     def __len__(self):
         L = len(self.dset)

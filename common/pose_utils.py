@@ -189,6 +189,17 @@ def calc_vo_logq(p0, p1):
     return torch.cat((vos[:, :3], vos_q), dim=1)
 
 
+def calc_relative_ori(q0, q1):
+    """
+    VO (in the p0 frame) (logq)
+    :param p0: N x 7
+    :param p1: N x 7
+    :return: N-1 x 6
+    """
+    # q0 = qexp_t(q0)
+    # q1 = qexp_t(q1)
+    return qlog_t(qmult(qinv(q0), q1))
+
 def calc_vo_relative(p0, p1):
     """
     calculates VO (in the world frame) from 2 poses
@@ -249,8 +260,8 @@ def calc_vo_logq_safe(p0, p1):
 def calc_vos_simple(poses):
     """
     calculate the VOs, from a list of consecutive poses
-    :param poses: N x T x 7
-    :return: N x (T-1) x 7
+    :param poses: N x T x 6 (can be 6 or 7)
+    :return: N x (T-1) x 6 (can be 6 or 7)
     """
     vos = []
     for p in poses:
@@ -264,8 +275,8 @@ def calc_vos_simple(poses):
 def calc_vos(poses):
     """
     calculate the VOs, from a list of consecutive poses (in the p0 frame)
-    :param poses: N x T x 7
-    :return: N x (T-1) x 7
+    :param poses: N x T x 6
+    :return: N x (T-1) x 6
     """
     vos = []
     for p in poses:
@@ -377,6 +388,34 @@ def process_poses(poses_in, mean_t, std_t, align_R, align_t, align_s):
     poses_out[:, :3] /= std_t
     return poses_out
 
+
+def process_poses_from_quartenion(t_in, q_in, mean_t, std_t, align_R, align_t, align_s):
+    """
+    processes the 1x12 raw pose from dataset by aligning and then normalizing
+    :param poses_in: N x 12
+    :param mean_t: 3
+    :param std_t: 3
+    :param align_R: 3 x 3
+    :param align_t: 3
+    :param align_s: 1
+    :return: processed poses (translation + quaternion) N x 7
+    """
+    poses_out = np.zeros((len(t_in), 6))
+    poses_out[:, 0:3] = t_in
+
+    # align
+    for i in range(len(poses_out)):
+        q = q_in[i]
+        q *= np.sign(q[0])  # constrain to hemisphere
+        q = qlog(q)
+        poses_out[i, 3:] = q
+        t = poses_out[i, :3] - align_t
+        poses_out[i, :3] = align_s * np.dot(align_R, t[:, np.newaxis]).squeeze()
+
+    # normalize translation
+    poses_out[:, :3] -= mean_t
+    poses_out[:, :3] /= std_t
+    return poses_out
 
 def log_quaternion_angular_error(q1, q2):
     return quaternion_angular_error(qexp(q1), qexp(q2))

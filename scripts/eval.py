@@ -8,6 +8,7 @@ from models.posenet import PoseNet, MapNet
 from common.train import load_state_dict, step_feedfwd
 from common.pose_utils import optimize_poses, quaternion_angular_error, qexp, \
     calc_vos_safe_fc, calc_vos_safe
+from common.data_utils import get_imagenet_mean_std
 from dataset_loaders.composite import MF
 import argparse
 import os
@@ -36,7 +37,10 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Evaluation script for PoseNet and'
                                                  'MapNet variants')
     parser.add_argument('--dataset', type=str,
-                        choices=('7Scenes', 'InLoc', 'InLocRes', 'RobotCar'))
+                        choices=('AirSim', '7Scenes', 'InLoc', 'InLocRes', 'RobotCar'))
+    parser.add_argument('--imu_mode', type=str, default='None',
+                        choices=('None', 'Average', 'Separate', 'Position', 'Orientation'),
+                        help='imu incorporation')
     parser.add_argument('--scene', type=str, help='Scene name')
     parser.add_argument('--weights', type=str, help='trained weights to load')
     parser.add_argument('--model', choices=('posenet', 'mapnet', 'mapnet++'),
@@ -104,7 +108,11 @@ if __name__ == '__main__':
 
     data_dir = osp.join('..', 'data', args.dataset)
     stats_filename = osp.join(data_dir, args.scene, 'stats.txt')
-    stats = np.loadtxt(stats_filename)
+    try:
+        stats = np.loadtxt(stats_filename)
+    except IOError as ex:
+        stats = get_imagenet_mean_std()
+
     # transformer
     data_transform = transforms.Compose([
         transforms.Resize(256),
@@ -113,7 +121,7 @@ if __name__ == '__main__':
     target_transform = transforms.Lambda(lambda x_: torch.from_numpy(x_).float())
 
     # read mean and stdev for un-normalizing predictions
-    pose_stats_file = osp.join(data_dir, args.scene, 'pose_stats.txt')
+    pose_stats_file = osp.join(data_dir, 'pose_stats.txt')
     pose_m, pose_s = np.loadtxt(pose_stats_file)  # mean and stdev
 
     # dataset
@@ -122,7 +130,9 @@ if __name__ == '__main__':
         print('Running {:s} on TRAIN data'.format(args.model))
     else:
         print('Running {:s} on VAL data'.format(args.model))
-    data_dir = osp.join('..', 'data', 'deepslam_data', args.dataset)
+
+    # data_dir = osp.join('..', 'data', 'deepslam_data', args.dataset)
+    data_dir = 'D:/Imperial/FYP/captured_data/airsim_drone_mode/relative_pose/'
     kwargs = dict(scene=args.scene, data_path=data_dir, train=train,
                   transform=data_transform, target_transform=target_transform, seed=seed)
     if (args.model.find('mapnet') >= 0) or args.pose_graph:
@@ -130,9 +140,14 @@ if __name__ == '__main__':
             assert real
             kwargs = dict(kwargs, vo_lib=vo_lib)
         vo_func = calc_vos_safe_fc if fc_vos else calc_vos_safe
-        data_set = MF(dataset=args.dataset, steps=steps, skip=skip, real=real,
+        if args.imu_mode == 'None':
+            data_set = MF(dataset=args.dataset, steps=steps, skip=skip, real=real,
                       variable_skip=variable_skip, include_vos=args.pose_graph,
                       vo_func=vo_func, no_duplicates=False, **kwargs)
+        else: 
+            data_set = MF(dataset=args.dataset, steps=steps, skip=skip, real=real, include_imu=True,
+                        variable_skip=variable_skip, include_vos=args.pose_graph,
+                        vo_func=vo_func, no_duplicates=False, **kwargs)
         L = len(data_set.dset)
     elif args.dataset == '7Scenes':
         from dataset_loaders.seven_scenes import SevenScenes
@@ -167,7 +182,7 @@ if __name__ == '__main__':
 
     # inference loop
     im_names = []
-    for batch_idx, data in enumerate(loader):
+    for batch_idx, (data, target) in enumerate(loader):
         if batch_idx % 200 == 0:
             print('Image {:d} / {:d}'.format(batch_idx, len(loader)))
 
@@ -179,7 +194,7 @@ if __name__ == '__main__':
         idx = idx[len(idx) // 2]
 
         # output : 1 x 6 or 1 x STEPS x 6
-        _, output = step_feedfwd(data, model, CUDA, train=False)
+        _, output = step_feedfwd(data, model, CUDA, args.imu_mode, train=False)
         s = output.size()
         output = output.cpu().data.numpy().reshape((-1, s[-1]))
         target = target.numpy().reshape((-1, s[-1]))
@@ -204,13 +219,6 @@ if __name__ == '__main__':
         # take the middle prediction
         pred_poses[idx, :] = output[len(output) // 2]
         targ_poses[idx, :] = target[len(target) // 2]
-
-    import pdb
-    pdb.set_trace()
-    with open('logs/pred_poses_{}_{}.txt'.format(
-            args.model, args.dataset, args.scene), 'w') as f:
-        for ii in range(len(data_set)):
-            f.write('{}\n'.format(' '.join(['{:.6f}'.format(x) for x in pred_poses[ii, :]])))
 
     # calculate losses
     t_loss = np.asarray([t_criterion(p, t) for p, t in zip(pred_poses[:, :3],

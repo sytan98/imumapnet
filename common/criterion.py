@@ -12,6 +12,8 @@ from common import pose_utils
 import torch
 from torch import nn
 
+from common.data_utils import get_translation_from_imu, integrate_angular_velocity
+
 class QuaternionLoss(nn.Module):
   """
   Implements distance between quaternions as mentioned in
@@ -106,6 +108,107 @@ class MapNetCriterion(nn.Module):
 
     # total loss
     loss = abs_loss + vo_loss
+    return loss
+
+
+class MapNetWithIMUCriterion(nn.Module):
+  def __init__(self, t_loss_fn=nn.L1Loss(), q_loss_fn=nn.L1Loss(), sax=0.0,
+               saq=0.0, srx=0, srq=0.0, learn_beta=False, learn_gamma=False):
+    """
+    Implements L_D from eq. 2 in the paper
+    :param t_loss_fn: loss function to be used for translation
+    :param q_loss_fn: loss function to be used for rotation
+    :param sax: absolute translation loss weight
+    :param saq: absolute rotation loss weight
+    :param srx: relative translation loss weight
+    :param srq: relative rotation loss weight
+    :param learn_beta: learn sax and saq?
+    :param learn_gamma: learn srx and srq?
+    """
+    super(MapNetWithIMUCriterion, self).__init__()
+    self.t_loss_fn = t_loss_fn
+    self.q_loss_fn = q_loss_fn
+    self.sax = nn.Parameter(torch.Tensor([sax]), requires_grad=learn_beta)
+    self.saq = nn.Parameter(torch.Tensor([saq]), requires_grad=learn_beta)
+    self.srx = nn.Parameter(torch.Tensor([srx]), requires_grad=learn_gamma)
+    self.srq = nn.Parameter(torch.Tensor([srq]), requires_grad=learn_gamma)
+
+  def forward(self, pred, targ, imu):
+    """
+    :param pred: N x T x 6
+    :param targ: N x T x 6
+    :return:
+    """
+    # absolute pose loss
+    s = pred.size()
+    abs_loss =\
+      torch.exp(-self.sax) * self.t_loss_fn(pred.view(-1, *s[2:])[:, :3],
+                                            targ.view(-1, *s[2:])[:, :3]) + \
+      self.sax + \
+      torch.exp(-self.saq) * self.q_loss_fn(pred.view(-1, *s[2:])[:, 3:],
+                                            targ.view(-1, *s[2:])[:, 3:]) + \
+      self.saq
+
+    # relative pose loss 
+    pred_vos = pose_utils.calc_vos_simple(pred)
+    targ_vos = pose_utils.calc_vos_simple(targ) 
+    targ_imu = pose_utils.calc_vos(targ) 
+
+    imu_translations = []
+    imu_ori_shifts = []
+    for j in range(len(imu)):
+        batch = imu[j]
+        target_batch = targ[j]
+        imu_batch_translations = []
+        imu_batch_ori_shifts = []
+        for i in range(1, len(batch)):
+            timestep = (batch[i][-1] - batch[i-1][-1])/1e9
+            cur_accel = batch[i-1][0:3]
+            initial_velocity = batch[i-1][3:6]
+            initial_orientation = pose_utils.qexp_t(target_batch[i-1][3:].unsqueeze(0)).cpu()
+            angular_vel = batch[i-1][6:9]
+            trans = get_translation_from_imu(initial_velocity, cur_accel, timestep)
+            new_ori = integrate_angular_velocity(initial_orientation, angular_vel, timestep)
+            new_ori = torch.from_numpy(new_ori).type(torch.FloatTensor)
+            # print(new_ori)
+            # print(pose_utils.qexp_t(target_batch[i][3:].unsqueeze(0)))
+            ori_shift = pose_utils.calc_relative_ori(initial_orientation, new_ori)
+            imu_batch_translations.append(trans.type(torch.FloatTensor))
+            imu_batch_ori_shifts.append(ori_shift.squeeze().type(torch.FloatTensor))
+
+        imu_batch_translations = torch.stack(imu_batch_translations, dim=0)
+        imu_batch_ori_shifts = torch.stack(imu_batch_ori_shifts, dim=0)
+        imu_translations.append(imu_batch_translations)
+        imu_ori_shifts.append(imu_batch_ori_shifts)
+
+    imu_translations = torch.stack(imu_translations, dim=0).cuda(non_blocking=True)
+    imu_ori_shifts = torch.stack(imu_ori_shifts, dim=0).cuda(non_blocking=True)
+
+    # print(f'imu trans {imu_translations}')
+    # print(f'imu ori {imu_ori_shifts}')
+    # print(f'target ori {targ_imu}')
+
+    # VO loss
+    s = pred_vos.size()
+    # print(f'imu {imu_translations.view(-1, 3)[:, :3]}')
+    vo_loss = \
+      torch.exp(-self.srx) * self.t_loss_fn(pred_vos.view(-1, *s[2:])[:, :3],
+                                            targ_vos.view(-1, *s[2:])[:, :3]) + \
+      self.srx + \
+      torch.exp(-self.srq) * self.q_loss_fn(pred_vos.view(-1, *s[2:])[:, 3:],
+                                            targ_vos.view(-1, *s[2:])[:, 3:]) + \
+      self.srq
+
+    imu_loss = \
+      torch.exp(-self.srx) * self.t_loss_fn(pred_vos.view(-1, *s[2:])[:, :3],
+                                            imu_translations.view(-1, 3)) + \
+      self.srx + \
+      torch.exp(-self.srq) * self.q_loss_fn(targ_imu.view(-1, *s[2:])[:, 3:],
+                                            imu_ori_shifts.view(-1, 3)) + \
+      self.srq
+
+    # total loss
+    loss = abs_loss + vo_loss + imu_loss
     return loss
 
 class MapNetOnlineCriterion(nn.Module):

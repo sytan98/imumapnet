@@ -68,7 +68,7 @@ def safe_collate(batch):
 
 class Trainer(object):
     def __init__(self, model, optimizer, train_criterion, config_file, experiment,
-                 train_dataset, val_dataset, device, checkpoint_file=None,
+                 train_dataset, val_dataset, device, imu_mode, checkpoint_file=None,
                  resume_optim=False, val_criterion=None):
         """
         General purpose training script
@@ -81,6 +81,7 @@ class Trainer(object):
         :param train_dataset: PyTorch dataset
         :param val_dataset: PyTorch dataset
         :param device: IDs of the GPUs to use - value of $CUDA_VISIBLE_DEVICES
+        :param imu_mode: Which IMU incorporation method to use
         :param checkpoint_file: Name of file with saved weights and optim params
         :param resume_optim: whether to resume optimization
         :param val_criterion: loss function to be used for validation
@@ -95,6 +96,7 @@ class Trainer(object):
         self.optimizer = optimizer
         if 'CUDA_VISIBLE_DEVICES' not in os.environ:
             os.environ['CUDA_VISIBLE_DEVICES'] = device
+        self.imu_mode = imu_mode
 
         # read the config
         settings = configparser.ConfigParser()
@@ -140,9 +142,9 @@ class Trainer(object):
             if self.n_criterion_params:
                 self.criterion_param_win = 'cparam_win'
                 self.vis.line(X=np.zeros((1, self.n_criterion_params)),
-                              Y=np.asarray(criterion_params.values())[np.newaxis, :],
+                              Y=np.asarray(list(criterion_params.values()))[np.newaxis, :],
                               win=self.criterion_param_win, env=self.vis_env,
-                              opts={'legend': criterion_params.keys(),
+                              opts={'legend': list(criterion_params.keys()),
                                     'xlabel': 'epochs', 'ylabel': 'value'})
 
         logfile = osp.join(self.logdir, 'log.txt')
@@ -233,7 +235,7 @@ class Trainer(object):
                     if lstm:
                         loss, _ = step_lstm(data, self.model, self.config['cuda'], **kwargs)
                     else:
-                        loss, _ = step_feedfwd(data, self.model, self.config['cuda'],
+                        loss, _ = step_feedfwd(data, self.model, self.config['cuda'], self.imu_mode, 
                                                **kwargs)
 
                     val_loss.update(loss)
@@ -257,9 +259,9 @@ class Trainer(object):
                                                                    epoch, val_loss.avg))
 
                 if self.config['log_visdom']:
-                    self.vis.updateTrace(X=np.asarray([epoch]),
-                                         Y=np.asarray([val_loss.avg]), win=self.loss_win, name='val_loss',
-                                         append=True, env=self.vis_env)
+                    self.vis.line(update='append', X=np.asarray([epoch]), 
+                                  Y=np.asarray([val_loss.avg]), win=self.loss_win, name='val_loss',
+                                  env=self.vis_env)
                     self.vis.save(envs=[self.vis_env])
 
             # SAVE CHECKPOINT
@@ -271,8 +273,8 @@ class Trainer(object):
             # ADJUST LR
             lr = self.optimizer.adjust_lr(epoch)
             if self.config['log_visdom']:
-                self.vis.updateTrace(X=np.asarray([epoch]), Y=np.asarray([np.log10(lr)]),
-                                     win=self.lr_win, name='learning_rate', append=True, env=self.vis_env)
+                self.vis.line(update='append', X=np.asarray([epoch]), Y=np.asarray([np.log10(lr)]),
+                              win=self.lr_win, name='learning_rate', env=self.vis_env)
 
             # TRAIN
             self.model.train()
@@ -288,7 +290,7 @@ class Trainer(object):
                 if lstm:
                     loss, _ = step_lstm(data, self.model, self.config['cuda'], **kwargs)
                 else:
-                    loss, _ = step_feedfwd(data, self.model, self.config['cuda'],
+                    loss, _ = step_feedfwd(data, self.model, self.config['cuda'], self.imu_mode, 
                                            **kwargs)
 
                 train_batch_time.update(time.time() - end)
@@ -306,15 +308,15 @@ class Trainer(object):
                             train_data_time.val, train_data_time.avg, train_batch_time.val,
                             train_batch_time.avg, loss, lr))
                     if self.config['log_visdom']:
-                        self.vis.updateTrace(X=np.asarray([epoch_count]),
-                                             Y=np.asarray([loss]), win=self.loss_win, name='train_loss',
-                                             append=True, env=self.vis_env)
+                        self.vis.line(update='append',X=np.asarray([epoch_count]),
+                                      Y=np.asarray([loss]), win=self.loss_win, name='train_loss',
+                                      env=self.vis_env)
                         if self.n_criterion_params:
                             for name, v in self.train_criterion.named_parameters():
                                 v = v.data.cpu().numpy()[0]
-                                self.vis.updateTrace(X=np.asarray([epoch_count]), Y=np.asarray([v]),
-                                                     win=self.criterion_param_win, name=name,
-                                                     append=True, env=self.vis_env)
+                                self.vis.line(update='append',X=np.asarray([epoch_count]), Y=np.asarray([v]),
+                                              win=self.criterion_param_win, name=name,
+                                              env=self.vis_env)
                         self.vis.save(envs=[self.vis_env])
 
                 end = time.time()
@@ -327,7 +329,7 @@ class Trainer(object):
             self.vis.save(envs=[self.vis_env])
 
 
-def step_feedfwd(data, model, cuda, target=None, criterion=None, optim=None,
+def step_feedfwd(data, model, cuda, imu_mode, target=None, criterion=None, optim=None,
                  train=True, max_grad_norm=0.0):
     """
     training/validation step for a feedforward NN
@@ -337,6 +339,7 @@ def step_feedfwd(data, model, cuda, target=None, criterion=None, optim=None,
     :param criterion:
     :param optim:
     :param cuda: whether CUDA is to be used
+    :param imu_mode: Which IMU incorporation method to use, imu data will be part of target
     :param train: training / val stage
     :param max_grad_norm: if > 0, clips the gradient norm
     :return:
@@ -346,17 +349,24 @@ def step_feedfwd(data, model, cuda, target=None, criterion=None, optim=None,
 
     data_var = Variable(data, requires_grad=train)
     if cuda:
-        data_var = data_var.cuda(async=True)
+        data_var = data_var.cuda(non_blocking=True)
     with torch.set_grad_enabled(train):
         output = model(data_var)
 
     if criterion is not None:
+        imu_data = None
+        if imu_mode != 'None':
+            target, imu_data = target
+
         if cuda:
-            target = target.cuda(async=True)
+            target = target.cuda(non_blocking=True)
 
         target_var = Variable(target, requires_grad=False)
         with torch.set_grad_enabled(train):
-            loss = criterion(output, target_var)
+            if imu_mode == 'None':
+                loss = criterion(output, target_var)
+            else:
+                loss = criterion(output, target_var, imu_data)
 
         if train:
             # SGD step
@@ -413,11 +423,11 @@ def step_lstm(data, model, cuda, target=None, criterion=None, optim=None,
             if target is not None:
                 tg = torch.index_select(tb, dim=1, index=Variable(g_idx).cuda())
             model.detach_hidden_states()
-            output = model(xg, cuda=cuda, async=True)
+            output = model(xg, cuda=cuda, non_blocking=True)
 
             if criterion is not None:
                 if cuda:
-                    tg = tg.cuda(async=True)
+                    tg = tg.cuda(non_blocking=True)
                 tg_var = Variable(tg, volatile=(not train), requires_grad=False)
                 loss = criterion(output, tg_var)
                 loss_accum += loss.data[0]
