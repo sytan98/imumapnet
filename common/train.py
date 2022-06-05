@@ -235,7 +235,7 @@ class Trainer(object):
                     if lstm:
                         loss, _ = step_lstm(data, self.model, self.config['cuda'], **kwargs)
                     else:
-                        loss, _ = step_feedfwd(data, self.model, self.config['cuda'], self.imu_mode, 
+                        loss, _ = step_feedfwd(data, self.model, self.config['cuda'], imu_mode='None', 
                                                **kwargs)
 
                     val_loss.update(loss)
