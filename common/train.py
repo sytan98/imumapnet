@@ -235,7 +235,7 @@ class Trainer(object):
                     if lstm:
                         loss, _ = step_lstm(data, self.model, self.config['cuda'], **kwargs)
                     else:
-                        loss, _ = step_feedfwd(data, self.model, self.config['cuda'], imu_mode='None', 
+                        loss, _ = step_feedfwd(data, self.model, self.config['cuda'], self.imu_mode, 
                                                **kwargs)
 
                     val_loss.update(loss)
@@ -352,18 +352,19 @@ def step_feedfwd(data, model, cuda, imu_mode, target=None, criterion=None, optim
         data_var = data_var.cuda(non_blocking=True)
     with torch.set_grad_enabled(train):
         output = model(data_var)
+    # print(f'output step fwd {output}')
 
     if criterion is not None:
         imu_data = None
         if imu_mode != 'None':
             target, imu_data = target
-
+        print(f'imu_data {imu_data}')
         if cuda:
             target = target.cuda(non_blocking=True)
 
         target_var = Variable(target, requires_grad=False)
         with torch.set_grad_enabled(train):
-            if imu_mode == 'None':
+            if imu_mode == 'None'  or train == False:
                 loss = criterion(output, target_var)
             else:
                 loss = criterion(output, target_var, imu_data)

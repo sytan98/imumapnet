@@ -120,6 +120,7 @@ class MF(data.Dataset):
 
         if self.include_imu:
             imu_data = torch.stack([c[2] for c in clip], dim=0)
+            # print(f'imu in composite {imu_data}')
             poses = (poses, imu_data)
 
         return imgs, poses

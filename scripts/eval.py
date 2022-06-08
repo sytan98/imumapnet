@@ -4,7 +4,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 """
 
 import set_paths
-from models.posenet import PoseNet, MapNet
+from models.posenet import PoseNet, MapNet, PoseNetWithImuOutput
 from common.train import load_state_dict, step_feedfwd
 from common.pose_utils import optimize_poses, quaternion_angular_error, qexp, \
     calc_vos_safe_fc, calc_vos_safe
@@ -83,12 +83,17 @@ if __name__ == '__main__':
             srq = section.getfloat('s_rel_rot', 20)
 
     # model
-    feature_extractor = models.resnet34(pretrained=False)
-    posenet = PoseNet(feature_extractor, droprate=dropout, pretrained=False)
-    if (args.model.find('mapnet') >= 0) or args.pose_graph:
+    feature_extractor = models.resnet34(pretrained=True)
+    if args.imu_mode == "Separate":
+        posenet = PoseNetWithImuOutput(feature_extractor, droprate=dropout, pretrained=False)
+    else:
+        posenet = PoseNet(feature_extractor, droprate=dropout, pretrained=False)
+    if args.model == 'posenet':
+        model = posenet
+    elif (args.model.find('mapnet') >= 0) or args.pose_graph:
         model = MapNet(mapnet=posenet)
     else:
-        model = posenet
+        raise NotImplementedError
     model.eval()
 
     # loss functions
@@ -183,6 +188,10 @@ if __name__ == '__main__':
     # inference loop
     im_names = []
     for batch_idx, (data, target) in enumerate(loader):
+        imu_data = None
+        if args.imu_mode != 'None':
+            target, imu_data = target
+        print(target, imu_data)
         if batch_idx % 200 == 0:
             print('Image {:d} / {:d}'.format(batch_idx, len(loader)))
 
@@ -195,9 +204,11 @@ if __name__ == '__main__':
 
         # output : 1 x 6 or 1 x STEPS x 6
         _, output = step_feedfwd(data, model, CUDA, args.imu_mode, train=False)
+        print(f'output {output}')
         s = output.size()
-        output = output.cpu().data.numpy().reshape((-1, s[-1]))
-        target = target.numpy().reshape((-1, s[-1]))
+        s_targ = target.size()
+        output = output.cpu().data.numpy().reshape((-1, s[-1]))[:, :6]
+        target = target.numpy().reshape((-1, s_targ[-1]))
 
         # normalize the predicted quaternions
         q = [qexp(p[3:]) for p in output]

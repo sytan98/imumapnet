@@ -6,6 +6,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 """
 implementation of PoseNet and MapNet networks 
 """
+from sklearn import feature_extraction
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -71,6 +72,51 @@ class PoseNet(nn.Module):
     xyz  = self.fc_xyz(x)
     wpqr = self.fc_wpqr(x)
     return torch.cat((xyz, wpqr), 1)
+
+class PoseNetWithImuOutput(nn.Module):
+  def __init__(self, feature_extractor, droprate=0.5, pretrained=True,
+      feat_dim=2048, filter_nans=False):
+    super(PoseNetWithImuOutput, self).__init__()
+    self.droprate = droprate
+
+    # replace the last FC layer in feature extractor
+    self.feature_extractor = feature_extractor
+    self.feature_extractor.avgpool = nn.AdaptiveAvgPool2d(1)
+    fe_out_planes = self.feature_extractor.fc.in_features
+    self.feature_extractor.fc = nn.Linear(fe_out_planes, feat_dim)
+
+    self.fc_xyz  = nn.Linear(feat_dim, 3)
+    self.fc_wpqr = nn.Linear(feat_dim, 3)
+    self.fc_xyz_imu  = nn.Linear(feat_dim, 3)
+    self.fc_wpqr_imu = nn.Linear(feat_dim, 3)
+    if filter_nans:
+      self.fc_wpqr.register_backward_hook(hook=filter_hook)
+
+    # initialize
+    if pretrained:
+      init_modules = [self.feature_extractor.fc, self.fc_xyz, self.fc_wpqr, self.fc_xyz_imu, self.fc_wpqr_imu]
+    else:
+      init_modules = self.modules()
+
+    for m in init_modules:
+      if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+        nn.init.kaiming_normal_(m.weight.data)
+        if m.bias is not None:
+          nn.init.constant_(m.bias.data, 0)
+
+  def forward(self, x):
+    print(f'input to the feature extractor {x}')
+    x = self.feature_extractor(x)
+    print(f'output of feature extractor {x}')
+    x = F.relu(x)
+    if self.droprate > 0:
+      x = F.dropout(x, p=self.droprate)
+
+    xyz  = self.fc_xyz(x)
+    wpqr = self.fc_wpqr(x)
+    xyz_imu  = self.fc_xyz_imu(x)
+    wpqr_imu = self.fc_wpqr_imu(x)
+    return torch.cat((xyz, wpqr, xyz_imu, wpqr_imu), 1)
 
 class MapNet(nn.Module):
   """

@@ -20,10 +20,10 @@ from torchvision import transforms, models
 
 from common.train import Trainer
 from common.optimizer import Optimizer
-from common.criterion import (PoseNetCriterion, MapNetCriterion, MapNetWithIMUCriterion,
+from common.criterion import (MapNetWithIMUCriterionSeparate, PoseNetCriterion, MapNetCriterion, MapNetWithIMUCriterion,
                               MapNetOnlineCriterion)
 from common.data_utils import get_imagenet_mean_std
-from models.posenet import PoseNet, MapNet
+from models.posenet import PoseNet, MapNet, PoseNetWithImuOutput
 from dataset_loaders.composite import MF, MFOnline
 
 from dataset_loaders.seven_scenes import SevenScenes
@@ -39,6 +39,8 @@ def parse_arguments():
     parser.add_argument('--imu_mode', type=str, default='None',
                         choices=('None', 'Average', 'Separate', 'Position', 'Orientation'),
                         help='imu incorporation')
+    parser.add_argument('--noisy_training', action='store_true',
+                        help='Use noisy training set')
     parser.add_argument('--scene', type=str, help='Scene name')
     parser.add_argument('--config_file', type=str, help='configuration file')
     parser.add_argument('--model', choices=('posenet', 'mapnet', 'mapnet++'),
@@ -82,6 +84,8 @@ if __name__ == '__main__':
         srx = 0.0
         srq = section.getfloat('gamma')
         steps = section.getint('steps')
+        if args.imu_mode != 'None':
+            imu_weight = section.getfloat('imu_loss_weight')
     if args.model.find('++') >= 0:
         vo_lib = section.get('vo_lib', 'orbslam')
         print('Using {:s} VO'.format(vo_lib))
@@ -91,8 +95,12 @@ if __name__ == '__main__':
 
     # model
     feature_extractor = models.resnet34(pretrained=True)
-    posenet = PoseNet(feature_extractor, droprate=dropout, pretrained=True,
-                      filter_nans=(args.model == 'mapnet++'))
+    if args.imu_mode == "Separate":
+        posenet = PoseNetWithImuOutput(feature_extractor, droprate=dropout, pretrained=True,
+                                       filter_nans=(args.model == 'mapnet++'))
+    else:
+        posenet = PoseNet(feature_extractor, droprate=dropout, pretrained=True,
+                          filter_nans=(args.model == 'mapnet++'))
     if args.model == 'posenet':
         model = posenet
     elif args.model.find('mapnet') >= 0:
@@ -114,10 +122,11 @@ if __name__ == '__main__':
         else:
             if args.imu_mode == 'None':
                 train_criterion = MapNetCriterion(**kwargs)
-                val_criterion = MapNetCriterion()
-            elif args.imu_mode == 'Position':
-                train_criterion = MapNetWithIMUCriterion(**kwargs)
-                val_criterion = MapNetWithIMUCriterion()
+            elif args.imu_mode == 'Average':
+                train_criterion = MapNetWithIMUCriterion(**kwargs, srx_imu= srx, srq_imu= srq, imu_weight=imu_weight)
+            elif args.imu_mode == 'Separate':
+                train_criterion = MapNetWithIMUCriterionSeparate(**kwargs, srx_imu= srx, srq_imu= srq)
+            val_criterion = MapNetCriterion()
     else:
         raise NotImplementedError
 
@@ -129,6 +138,9 @@ if __name__ == '__main__':
     if args.learn_gamma and hasattr(train_criterion, 'srx') and \
             hasattr(train_criterion, 'srq'):
         param_list.append({'params': [train_criterion.srx, train_criterion.srq]})
+    if args.learn_gamma and hasattr(train_criterion, 'srx_imu') and \
+            hasattr(train_criterion, 'srq_imu'):
+        param_list.append({'params': [train_criterion.srx_imu, train_criterion.srq_imu]})
     optimizer = Optimizer(params=param_list, method=opt_method, base_lr=lr,
                           weight_decay=weight_decay, **optim_config)
 
@@ -156,7 +168,7 @@ if __name__ == '__main__':
 
     # datasets
     # data_dir = osp.join('..', 'data', 'deepslam_data', args.dataset)
-    data_dir = 'D:/Imperial/FYP/captured_data/airsim_drone_mode/relative_pose/'
+    data_dir = 'D:/Imperial/FYP/captured_data/airsim_drone_mode/'
     kwargs = dict(scene=args.scene, data_path=data_dir, transform=data_transform,
                   target_transform=target_transform, seed=seed)
     # if model being tested is posenet
@@ -181,7 +193,7 @@ if __name__ == '__main__':
     # MapNet data loaders managed here
     elif args.model.find('mapnet') >= 0:
         kwargs = dict(kwargs, dataset=args.dataset, skip=skip, steps=steps,
-                      variable_skip=variable_skip)
+                      variable_skip=variable_skip, simulate_noise=args.noisy_training)
         if args.model.find('++') >= 0:
             train_set = MFOnline(vo_lib=vo_lib, gps_mode=(vo_lib == 'gps'), **kwargs)
             val_set = None
@@ -198,8 +210,8 @@ if __name__ == '__main__':
     # trainer
     config_name = args.config_file.split('/')[-1]
     config_name = config_name.split('.')[0]
-    experiment_name = '{:s}_{:s}_{:s}_{:s}'.format(args.dataset, args.scene,
-                                                   args.model, config_name)
+    experiment_name = '{:s}_{:s}_{:s}_{:s}_imu_{:s}'.format(args.dataset, args.scene,
+                                                   args.model, config_name, args.imu_mode)
     if args.learn_beta:
         experiment_name = '{:s}_learn_beta'.format(experiment_name)
     if args.learn_gamma:
