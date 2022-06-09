@@ -51,7 +51,7 @@ class AirSim(data.Dataset):
         if train:
             airsim_rec_file = f'{train_or_val}_noisy_abs.txt' if simulate_noise else f'{train_or_val}_clean.txt'
         else:
-            airsim_rec_file = f'{train_or_val}.txt'
+            airsim_rec_file = f'{train_or_val}_abs.txt'
 
         # read poses and collect image names
         self.c_imgs = []
