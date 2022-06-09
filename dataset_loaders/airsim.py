@@ -22,7 +22,7 @@ from dataset_loaders.utils import load_image
 class AirSim(data.Dataset):
     def __init__(self, scene, data_path, train, transform=None,
                  target_transform=None, mode=0, seed=7, real=False,
-                 skip_images=False, simulate_noise=True):
+                 skip_images=False, simulate_noise='None'):
         """
         :param scene: scene name ['chess', 'pumpkin', ...]
         :param data_path: root 7scenes data directory.
@@ -49,7 +49,10 @@ class AirSim(data.Dataset):
         data_root = osp.join(data_path, scene)
         train_or_val = "train" if train else "val"
         if train:
-            airsim_rec_file = f'{train_or_val}_noisy.txt' if simulate_noise else f'{train_or_val}_clean.txt'
+            if simulate_noise == 'None':
+                airsim_rec_file = f'{train_or_val}_clean.txt'
+            else:
+                airsim_rec_file = f'{train_or_val}_noisy_{simulate_noise}.txt' 
         else:
             airsim_rec_file = f'{train_or_val}.txt'
 

@@ -40,7 +40,8 @@ def parse_arguments():
     parser.add_argument('--imu_mode', type=str, default='None',
                         choices=('None', 'Average', 'Separate', 'Position', 'Orientation'),
                         help='imu incorporation')
-    parser.add_argument('--noisy_training', action='store_true',
+    parser.add_argument('--noisy_training',  type=str,
+                        choices=('None', 'v1', 'v2'),
                         help='Use noisy training set')
     parser.add_argument('--scene', type=str, help='Scene name')
     parser.add_argument('--config_file', type=str, help='configuration file')
