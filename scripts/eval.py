@@ -115,16 +115,12 @@ if __name__ == '__main__':
 
     data_dir = osp.join('..', 'data', args.dataset)
     stats_filename = osp.join(data_dir, args.scene, 'stats.txt')
-    try:
-        stats = np.loadtxt(stats_filename)
-    except IOError as ex:
-        stats = get_imagenet_mean_std()
+    stats = np.loadtxt(stats_filename)
 
     # transformer
     data_transform = transforms.Compose([
-        transforms.Resize(256),
         transforms.ToTensor(),
-        transforms.Normalize(mean=stats[0], std=np.sqrt(stats[1]))])
+        transforms.Normalize(mean=stats[0], std=stats[1])])
     target_transform = transforms.Lambda(lambda x_: torch.from_numpy(x_).float())
 
     # read mean and stdev for un-normalizing predictions
@@ -203,8 +199,7 @@ if __name__ == '__main__':
         idx = idx[len(idx) // 2]
 
         # output : 1 x 6 or 1 x STEPS x 6
-        _, output = step_feedfwd(data, model, CUDA, args.imu_mode, train=False)
-        print(f'output {output}')
+        _, output, _ = step_feedfwd(data, model, CUDA, args.imu_mode, train=False)
         s = output.size()
         s_targ = target.size()
         output = output.cpu().data.numpy().reshape((-1, s[-1]))[:, :6]

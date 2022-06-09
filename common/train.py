@@ -146,7 +146,7 @@ class Trainer(object):
             #                   win=self.criterion_param_win, env=self.vis_env,
             #                   opts={'legend': list(criterion_params.keys()),
             #                         'xlabel': 'epochs', 'ylabel': 'value'})
-            self.writer = SummaryWriter()
+            self.writer = SummaryWriter(experiment)
 
         logfile = osp.join(self.logdir, 'log.txt')
         stdout = Logger.Logger(logfile)

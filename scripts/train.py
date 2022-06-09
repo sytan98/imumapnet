@@ -146,24 +146,21 @@ if __name__ == '__main__':
                           weight_decay=weight_decay, **optim_config)
 
     data_dir = osp.join('..', 'data', args.dataset)
-    stats_file = osp.join(data_dir, args.scene, 'stats.txt')
-    try:
-        stats = np.loadtxt(stats_file)
-    except IOError as ex:
-        stats = get_imagenet_mean_std()
+    stats_file = osp.join(data_dir, 'stats.txt')
+    stats = np.loadtxt(stats_file)
 
     crop_size_file = osp.join(data_dir, 'crop_size.txt')
     crop_size = tuple(np.loadtxt(crop_size_file).astype(int))
 
     # transformers
-    tforms = [transforms.Resize(256)]
+    tforms = []
     if color_jitter > 0:
         assert color_jitter <= 1.0
         print('Using ColorJitter data augmentation')
         tforms.append(transforms.ColorJitter(brightness=color_jitter,
                                              contrast=color_jitter, saturation=color_jitter, hue=0.5))
     tforms.append(transforms.ToTensor())
-    tforms.append(transforms.Normalize(mean=stats[0], std=np.sqrt(stats[1])))
+    tforms.append(transforms.Normalize(mean=stats[0], std=stats[1]))
     data_transform = transforms.Compose(tforms)
     target_transform = transforms.Lambda(lambda x: torch.from_numpy(x).float())
 

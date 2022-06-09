@@ -49,9 +49,9 @@ class AirSim(data.Dataset):
         data_root = osp.join(data_path, scene)
         train_or_val = "train" if train else "val"
         if train:
-            airsim_rec_file = f'{train_or_val}_noisy_abs.txt' if simulate_noise else f'{train_or_val}_clean.txt'
+            airsim_rec_file = f'{train_or_val}_noisy.txt' if simulate_noise else f'{train_or_val}_clean.txt'
         else:
-            airsim_rec_file = f'{train_or_val}_abs.txt'
+            airsim_rec_file = f'{train_or_val}.txt'
 
         # read poses and collect image names
         self.c_imgs = []
@@ -152,6 +152,7 @@ def main():
     N = 2
     for batch in data_loader:
         print('Minibatch {:d}'.format(batch_count))
+        print(batch[0].shape)
         if mode < 2:
             show_batch(make_grid(batch[0], nrow=1, padding=25, normalize=True))
         elif mode == 2:
