@@ -10,7 +10,7 @@ import os.path as osp
 import time
 import configparser
 import numpy as np
-from visdom import Visdom
+from torch.utils.tensorboard import SummaryWriter
 
 from common import Logger
 
@@ -125,27 +125,28 @@ class Trainer(object):
             os.makedirs(self.logdir)
 
         if self.config['log_visdom']:
-            # start plots
-            self.vis_env = experiment
-            self.loss_win = 'loss_win'
-            self.vis = Visdom()
-            self.vis.line(X=np.zeros((1, 2)), Y=np.zeros((1, 2)), win=self.loss_win,
-                          opts={'legend': ['train_loss', 'val_loss'], 'xlabel': 'epochs',
-                                'ylabel': 'loss'}, env=self.vis_env)
-            self.lr_win = 'lr_win'
-            self.vis.line(X=np.zeros(1), Y=np.zeros(1), win=self.lr_win,
-                          opts={'legend': ['learning_rate'], 'xlabel': 'epochs',
-                                'ylabel': 'log(lr)'}, env=self.vis_env)
-            criterion_params = {k: v.data.cpu().numpy()[0] for k, v in
-                                self.train_criterion.named_parameters()}
-            self.n_criterion_params = len(criterion_params)
-            if self.n_criterion_params:
-                self.criterion_param_win = 'cparam_win'
-                self.vis.line(X=np.zeros((1, self.n_criterion_params)),
-                              Y=np.asarray(list(criterion_params.values()))[np.newaxis, :],
-                              win=self.criterion_param_win, env=self.vis_env,
-                              opts={'legend': list(criterion_params.keys()),
-                                    'xlabel': 'epochs', 'ylabel': 'value'})
+            # # start plots
+            # self.vis_env = experiment
+            # self.loss_win = 'loss_win'
+            # self.vis = Visdom()
+            # self.vis.line(X=np.zeros((1, 2)), Y=np.zeros((1, 2)), win=self.loss_win,
+            #               opts={'legend': ['train_loss', 'val_loss'], 'xlabel': 'epochs',
+            #                     'ylabel': 'loss'}, env=self.vis_env)
+            # self.lr_win = 'lr_win'
+            # self.vis.line(X=np.zeros(1), Y=np.zeros(1), win=self.lr_win,
+            #               opts={'legend': ['learning_rate'], 'xlabel': 'epochs',
+            #                     'ylabel': 'log(lr)'}, env=self.vis_env)
+            # criterion_params = {k: v.data.cpu().numpy()[0] for k, v in
+            #                     self.train_criterion.named_parameters()}
+            # self.n_criterion_params = len(criterion_params)
+            # if self.n_criterion_params:
+            #     self.criterion_param_win = 'cparam_win'
+            #     self.vis.line(X=np.zeros((1, self.n_criterion_params)),
+            #                   Y=np.asarray(list(criterion_params.values()))[np.newaxis, :],
+            #                   win=self.criterion_param_win, env=self.vis_env,
+            #                   opts={'legend': list(criterion_params.keys()),
+            #                         'xlabel': 'epochs', 'ylabel': 'value'})
+            self.writer = SummaryWriter()
 
         logfile = osp.join(self.logdir, 'log.txt')
         stdout = Logger.Logger(logfile)
@@ -174,7 +175,7 @@ class Trainer(object):
                 if resume_optim:
                     self.optimizer.learner.load_state_dict(checkpoint['optim_state_dict'])
                     self.start_epoch = checkpoint['epoch']
-                    if checkpoint.has_key('criterion_state_dict'):
+                    if 'criterion_state_dict' in checkpoint:
                         c_state = checkpoint['criterion_state_dict']
                         append_dict = {k: torch.Tensor([0.0])
                                        for k, _ in self.train_criterion.named_parameters()
@@ -224,6 +225,9 @@ class Trainer(object):
                                           (epoch == self.config['n_epochs'] - 1)):
                 val_batch_time = Logger.AverageMeter()
                 val_loss = Logger.AverageMeter()
+                val_abs_loss = Logger.AverageMeter()
+                val_rel_loss = Logger.AverageMeter()
+                
                 self.model.eval()
                 end = time.time()
                 val_data_time = Logger.AverageMeter()
@@ -235,11 +239,16 @@ class Trainer(object):
                     if lstm:
                         loss, _ = step_lstm(data, self.model, self.config['cuda'], **kwargs)
                     else:
-                        loss, _ = step_feedfwd(data, self.model, self.config['cuda'], self.imu_mode, 
+                        loss, _, loss_breakdown = step_feedfwd(data, self.model, self.config['cuda'], self.imu_mode, 
                                                **kwargs)
 
                     val_loss.update(loss)
+                    
                     val_batch_time.update(time.time() - end)
+                    
+                    abs_loss, rel_loss = loss_breakdown
+                    val_abs_loss.update(abs_loss)
+                    val_rel_loss.update(rel_loss)
 
                     if batch_idx % self.config['print_freq'] == 0:
                         print('Val {:s}: Epoch {:d}\t' \
@@ -250,8 +259,8 @@ class Trainer(object):
                               .format(self.experiment, epoch, batch_idx, len(self.val_loader) - 1,
                                       val_data_time.val, val_data_time.avg, val_batch_time.val,
                                       val_batch_time.avg, loss))
-                        if self.config['log_visdom']:
-                            self.vis.save(envs=[self.vis_env])
+                        # if self.config['log_visdom']:
+                        #     self.vis.save(envs=[self.vis_env])
 
                     end = time.time()
 
@@ -259,11 +268,13 @@ class Trainer(object):
                                                                    epoch, val_loss.avg))
 
                 if self.config['log_visdom']:
-                    self.vis.line(update='append', X=np.asarray([epoch]), 
-                                  Y=np.asarray([val_loss.avg]), win=self.loss_win, name='val_loss',
-                                  env=self.vis_env)
-                    self.vis.save(envs=[self.vis_env])
-
+                #     self.vis.line(update='append', X=np.asarray([epoch]), 
+                #                   Y=np.asarray([val_loss.avg]), win=self.loss_win, name='val_loss',
+                #                   env=self.vis_env)
+                #     self.vis.save(envs=[self.vis_env])
+                    self.writer.add_scalar("Loss/val_total", val_loss.avg, epoch)
+                    self.writer.add_scalar("Loss/val_abs", val_abs_loss.avg, epoch)
+                    self.writer.add_scalar("Loss/val_rel", val_rel_loss.avg, epoch)
             # SAVE CHECKPOINT
             if epoch % self.config['snapshot'] == 0:
                 self.save_checkpoint(epoch)
@@ -273,13 +284,18 @@ class Trainer(object):
             # ADJUST LR
             lr = self.optimizer.adjust_lr(epoch)
             if self.config['log_visdom']:
-                self.vis.line(update='append', X=np.asarray([epoch]), Y=np.asarray([np.log10(lr)]),
-                              win=self.lr_win, name='learning_rate', env=self.vis_env)
-
+                # self.vis.line(update='append', X=np.asarray([epoch]), Y=np.asarray([np.log10(lr)]),
+                #               win=self.lr_win, name='learning_rate', env=self.vis_env)
+                self.writer.add_scalar("Learning_rate", lr, epoch)
             # TRAIN
             self.model.train()
             train_data_time = Logger.AverageMeter()
             train_batch_time = Logger.AverageMeter()
+            train_loss = Logger.AverageMeter()
+            train_abs_loss = Logger.AverageMeter()
+            train_rel_loss = Logger.AverageMeter()
+            if self.imu_mode != 'None':
+                train_imu_loss = Logger.AverageMeter()
             end = time.time()
             for batch_idx, (data, target) in enumerate(self.train_loader):
                 train_data_time.update(time.time() - end)
@@ -290,10 +306,19 @@ class Trainer(object):
                 if lstm:
                     loss, _ = step_lstm(data, self.model, self.config['cuda'], **kwargs)
                 else:
-                    loss, _ = step_feedfwd(data, self.model, self.config['cuda'], self.imu_mode, 
-                                           **kwargs)
-
+                    loss, _, loss_breakdown = step_feedfwd(data, self.model, self.config['cuda'], self.imu_mode, 
+                                                            **kwargs)
                 train_batch_time.update(time.time() - end)
+                train_loss.update(loss)
+
+                if self.imu_mode != 'None':
+                    abs_loss, rel_loss, imu_loss = loss_breakdown
+                    train_imu_loss.update(loss)
+                else:    
+                    abs_loss, rel_loss = loss_breakdown
+
+                train_abs_loss.update(abs_loss)
+                train_rel_loss.update(rel_loss)
 
                 if batch_idx % self.config['print_freq'] == 0:
                     n_iter = epoch * len(self.train_loader) + batch_idx
@@ -307,27 +332,33 @@ class Trainer(object):
                             self.experiment, epoch, batch_idx, len(self.train_loader) - 1,
                             train_data_time.val, train_data_time.avg, train_batch_time.val,
                             train_batch_time.avg, loss, lr))
-                    if self.config['log_visdom']:
-                        self.vis.line(update='append',X=np.asarray([epoch_count]),
-                                      Y=np.asarray([loss]), win=self.loss_win, name='train_loss',
-                                      env=self.vis_env)
-                        if self.n_criterion_params:
-                            for name, v in self.train_criterion.named_parameters():
-                                v = v.data.cpu().numpy()[0]
-                                self.vis.line(update='append',X=np.asarray([epoch_count]), Y=np.asarray([v]),
-                                              win=self.criterion_param_win, name=name,
-                                              env=self.vis_env)
-                        self.vis.save(envs=[self.vis_env])
+                    # if self.config['log_visdom']:
+                        # self.vis.line(update='append',X=np.asarray([epoch_count]),
+                        #               Y=np.asarray([loss]), win=self.loss_win, name='train_loss',
+                        #               env=self.vis_env)
+                        # if self.n_criterion_params:
+                        #     for name, v in self.train_criterion.named_parameters():
+                        #         v = v.data.cpu().numpy()[0]
+                        #         self.vis.line(update='append',X=np.asarray([epoch_count]), Y=np.asarray([v]),
+                        #                       win=self.criterion_param_win, name=name,
+                        #                       env=self.vis_env)
+                        # self.vis.save(envs=[self.vis_env])
 
                 end = time.time()
+            if self.config['log_visdom']:
+                self.writer.add_scalar("Loss/train_total", train_loss.avg, epoch)
+                self.writer.add_scalar("Loss/train_abs", train_abs_loss.avg, epoch)
+                self.writer.add_scalar("Loss/train_rel", train_rel_loss.avg, epoch)
+                if self.imu_mode != 'None':
+                    self.writer.add_scalar("Loss/train_imu", train_imu_loss.avg, epoch)
 
         # Save final checkpoint
         epoch = self.config['n_epochs']
         self.save_checkpoint(epoch)
         print('Epoch {:d} checkpoint saved'.format(epoch))
-        if self.config['log_visdom']:
-            self.vis.save(envs=[self.vis_env])
-
+        # if self.config['log_visdom']:
+        #     self.vis.save(envs=[self.vis_env])
+        self.writer.close()
 
 def step_feedfwd(data, model, cuda, imu_mode, target=None, criterion=None, optim=None,
                  train=True, max_grad_norm=0.0):
@@ -358,16 +389,15 @@ def step_feedfwd(data, model, cuda, imu_mode, target=None, criterion=None, optim
         imu_data = None
         if imu_mode != 'None':
             target, imu_data = target
-        print(f'imu_data {imu_data}')
         if cuda:
             target = target.cuda(non_blocking=True)
 
         target_var = Variable(target, requires_grad=False)
         with torch.set_grad_enabled(train):
             if imu_mode == 'None'  or train == False:
-                loss = criterion(output, target_var)
+                loss, loss_breakdown = criterion(output, target_var)
             else:
-                loss = criterion(output, target_var, imu_data)
+                loss, loss_breakdown = criterion(output, target_var, imu_data)
 
         if train:
             # SGD step
@@ -377,9 +407,9 @@ def step_feedfwd(data, model, cuda, imu_mode, target=None, criterion=None, optim
                 torch.nn.utils.clip_grad_norm(model.parameters(), max_grad_norm)
             optim.learner.step()
 
-        return loss.item(), output
+        return loss.item(), output, loss_breakdown
     else:
-        return 0, output
+        return 0, output, None
 
 
 def step_lstm(data, model, cuda, target=None, criterion=None, optim=None,

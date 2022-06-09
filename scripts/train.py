@@ -33,6 +33,7 @@ from dataset_loaders.inloc import InLoc
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Training script for PoseNet and'
                                                  'MapNet variants')
+    parser.add_argument('--data_dir', type=str)
     parser.add_argument('--dataset', type=str,
                         choices=('AirSim', '7Scenes', 'InLoc', 'InLocRes', 'RobotCar'),
                         help='Dataset')
@@ -167,8 +168,7 @@ if __name__ == '__main__':
     target_transform = transforms.Lambda(lambda x: torch.from_numpy(x).float())
 
     # datasets
-    # data_dir = osp.join('..', 'data', 'deepslam_data', args.dataset)
-    data_dir = 'D:/Imperial/FYP/captured_data/airsim_drone_mode/'
+    data_dir = args.data_dir 
     kwargs = dict(scene=args.scene, data_path=data_dir, transform=data_transform,
                   target_transform=target_transform, seed=seed)
     # if model being tested is posenet

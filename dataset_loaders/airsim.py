@@ -49,7 +49,7 @@ class AirSim(data.Dataset):
         data_root = osp.join(data_path, scene)
         train_or_val = "train" if train else "val"
         if train:
-            airsim_rec_file = f'{train_or_val}_noisy.txt' if simulate_noise else f'{train_or_val}_clean.txt'
+            airsim_rec_file = f'{train_or_val}_noisy_abs.txt' if simulate_noise else f'{train_or_val}_clean.txt'
         else:
             airsim_rec_file = f'{train_or_val}.txt'
 

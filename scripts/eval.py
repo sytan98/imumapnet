@@ -36,6 +36,7 @@ import _pickle as cPickle
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Evaluation script for PoseNet and'
                                                  'MapNet variants')
+    parser.add_argument('--data_dir', type=str)
     parser.add_argument('--dataset', type=str,
                         choices=('AirSim', '7Scenes', 'InLoc', 'InLocRes', 'RobotCar'))
     parser.add_argument('--imu_mode', type=str, default='None',
@@ -50,6 +51,7 @@ def parse_arguments():
     parser.add_argument('--device', type=str, default='0', help='GPU device(s)')
     parser.add_argument('--config_file', type=str, help='configuration file')
     parser.add_argument('--val', action='store_true', help='Plot graph for val')
+    parser.add_argument('--plot_3d', action='store_true', help='Plot 3D graph for val')
     parser.add_argument('--output_dir', type=str, default=None,
                         help='Output image directory')
     parser.add_argument('--pose_graph', action='store_true',
@@ -136,8 +138,7 @@ if __name__ == '__main__':
     else:
         print('Running {:s} on VAL data'.format(args.model))
 
-    # data_dir = osp.join('..', 'data', 'deepslam_data', args.dataset)
-    data_dir = 'D:/Imperial/FYP/captured_data/airsim_drone_mode/relative_pose/'
+    data_dir = args.data_dir
     kwargs = dict(scene=args.scene, data_path=data_dir, train=train,
                   transform=data_transform, target_transform=target_transform, seed=seed)
     if (args.model.find('mapnet') >= 0) or args.pose_graph:
@@ -191,7 +192,6 @@ if __name__ == '__main__':
         imu_data = None
         if args.imu_mode != 'None':
             target, imu_data = target
-        print(target, imu_data)
         if batch_idx % 200 == 0:
             print('Image {:d} / {:d}'.format(batch_idx, len(loader)))
 
@@ -248,7 +248,7 @@ if __name__ == '__main__':
 
     # create figure object
     fig = plt.figure()
-    if args.dataset != '7Scenes':
+    if ! args.plot_3d:
         ax = fig.add_subplot(111)
     else:
         ax = fig.add_subplot(111, projection='3d')
@@ -259,7 +259,7 @@ if __name__ == '__main__':
     # scatter the points and draw connecting line
     x = np.vstack((pred_poses[::ss, 0].T, targ_poses[::ss, 0].T))
     y = np.vstack((pred_poses[::ss, 1].T, targ_poses[::ss, 1].T))
-    if args.dataset != '7Scenes':  # 2D drawing
+    if ! args.plot_3d:  # 2D drawing
         ax.plot(x, y, c='b')
         ax.scatter(x[0, :], y[0, :], c='r')
         ax.scatter(x[1, :], y[1, :], c='g')

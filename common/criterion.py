@@ -109,7 +109,7 @@ class MapNetCriterion(nn.Module):
 
     # total loss
     loss = abs_loss + vo_loss
-    return loss
+    return loss, (abs_loss.item(), vo_loss.item())
 
 
 class MapNetWithIMUCriterion(nn.Module):
@@ -160,8 +160,8 @@ class MapNetWithIMUCriterion(nn.Module):
     pred_imu = pose_utils.calc_vos(pred) 
     # targ_imu = pose_utils.calc_vos(targ) 
 
-    imu_translations = imu[:, 1:, :3]
-    imu_orientations = imu[:, 1:, 3:]
+    imu_translations = imu[:, :, :3]
+    imu_orientations = imu[:, :, 3:]
     # print(f'imu_translations {imu_translations}, shape {imu_translations.size()}')
     # print(f'targ_vos {targ_vos}, shape {targ_vos.size()}')
     # print(f'imu_orientations {imu_orientations}')
@@ -172,9 +172,13 @@ class MapNetWithIMUCriterion(nn.Module):
         imu_orientation_logq.append(pvos)
     imu_orientation_logq = torch.stack(imu_orientation_logq, dim=0)
     # print(f'imu_orientation_logq {imu_orientation_logq}')
+    # print(f'cat {torch.cat((imu_translations, imu_orientation_logq), dim=2)}')
 
-    imu_translations = imu_translations.cuda(non_blocking=True)
-    imu_orientation_logq = imu_orientation_logq.cuda(non_blocking=True)
+    targ_imu = pose_utils.calc_vos_simple(torch.cat((imu_translations, imu_orientation_logq), dim=2))
+    targ_imu = targ_imu.cuda(non_blocking=True)
+
+    # imu_translations = imu_translations.cuda(non_blocking=True)
+    # imu_orientation_logq = imu_orientation_logq.cuda(non_blocking=True)
 
     # print(f'target ori log q{targ_imu.view(-1, *s[2:])[:, 3:]}')
     # print(f'pred ori {pred_imu.view(-1, *s[2:])[:, 3:]}')
@@ -193,16 +197,24 @@ class MapNetWithIMUCriterion(nn.Module):
     # IMU relative pose loss
     imu_loss = \
       torch.exp(-self.srx_imu) * self.t_loss_fn(pred_vos.view(-1, *s[2:])[:, :3],
-                                            imu_translations.view(-1, 3)) + \
+                                                targ_imu.view(-1, *s[2:])[:, :3]) + \
       self.srx_imu + \
-      torch.exp(-self.srq_imu) * self.q_loss_fn(pred_imu.view(-1, *s[2:])[:, 3:],
-                                            imu_orientation_logq.view(-1, 3)) + \
+      torch.exp(-self.srq_imu) * self.q_loss_fn(pred_vos.view(-1, *s[2:])[:, 3:],
+                                                targ_imu.view(-1, *s[2:])[:, 3:]) + \
       self.srq_imu
 
+    # imu_loss = \
+    #   torch.exp(-self.srx_imu) * self.t_loss_fn(pred_vos.view(-1, *s[2:])[:, :3],
+    #                                         imu_translations.view(-1, 3)) + \
+    #   self.srx_imu + \
+    #   torch.exp(-self.srq_imu) * self.q_loss_fn(pred_imu.view(-1, *s[2:])[:, 3:],
+    #                                         imu_orientation_logq.view(-1, 3)) + \
+    #   self.srq_imu
+
     # total loss
-    print(f'imu weight {self.imu_weight}')
-    loss = abs_loss + vo_loss + self.imu_weight * imu_loss
-    return loss
+    # print(f'imu weight {self.imu_weight}')
+    loss = abs_loss + (1.0 - self.imu_weight) * vo_loss + self.imu_weight * imu_loss
+    return loss, (abs_loss.item(), vo_loss.item(), imu_loss.item())
 
 class MapNetWithIMUCriterionSeparate(nn.Module):
   def __init__(self, t_loss_fn=nn.L1Loss(), q_loss_fn=nn.L1Loss(), 
