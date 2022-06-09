@@ -248,7 +248,7 @@ if __name__ == '__main__':
 
     # create figure object
     fig = plt.figure()
-    if ! args.plot_3d:
+    if not args.plot_3d:
         ax = fig.add_subplot(111)
     else:
         ax = fig.add_subplot(111, projection='3d')
@@ -259,7 +259,7 @@ if __name__ == '__main__':
     # scatter the points and draw connecting line
     x = np.vstack((pred_poses[::ss, 0].T, targ_poses[::ss, 0].T))
     y = np.vstack((pred_poses[::ss, 1].T, targ_poses[::ss, 1].T))
-    if ! args.plot_3d:  # 2D drawing
+    if not args.plot_3d:  # 2D drawing
         ax.plot(x, y, c='b')
         ax.scatter(x[0, :], y[0, :], c='r')
         ax.scatter(x[1, :], y[1, :], c='g')
