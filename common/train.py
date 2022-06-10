@@ -146,7 +146,7 @@ class Trainer(object):
             #                   win=self.criterion_param_win, env=self.vis_env,
             #                   opts={'legend': list(criterion_params.keys()),
             #                         'xlabel': 'epochs', 'ylabel': 'value'})
-            self.writer = SummaryWriter(experiment)
+            self.writer = SummaryWriter(f'runs/{experiment}')
 
         logfile = osp.join(self.logdir, 'log.txt')
         stdout = Logger.Logger(logfile)
@@ -294,8 +294,12 @@ class Trainer(object):
             train_loss = Logger.AverageMeter()
             train_abs_loss = Logger.AverageMeter()
             train_rel_loss = Logger.AverageMeter()
-            if self.imu_mode != 'None':
+            if self.imu_mode == 'Average':
                 train_imu_loss = Logger.AverageMeter()
+            elif self.imu_mode == 'Separate':
+                train_imu_abs_loss = Logger.AverageMeter()
+                train_imu_rel_loss = Logger.AverageMeter()
+
             end = time.time()
             for batch_idx, (data, target) in enumerate(self.train_loader):
                 train_data_time.update(time.time() - end)
@@ -311,9 +315,13 @@ class Trainer(object):
                 train_batch_time.update(time.time() - end)
                 train_loss.update(loss)
 
-                if self.imu_mode != 'None':
+                if self.imu_mode == 'Average':
                     abs_loss, rel_loss, imu_loss = loss_breakdown
-                    train_imu_loss.update(loss)
+                    train_imu_loss.update(imu_loss)
+                elif self.imu_mode == 'Separate':
+                    abs_loss, rel_loss, imu_abs_loss, imu_rel_loss = loss_breakdown
+                    train_imu_abs_loss.update(imu_abs_loss)
+                    train_imu_rel_loss.update(imu_rel_loss)
                 else:    
                     abs_loss, rel_loss = loss_breakdown
 
@@ -349,8 +357,11 @@ class Trainer(object):
                 self.writer.add_scalar("Loss/train_total", train_loss.avg, epoch)
                 self.writer.add_scalar("Loss/train_abs", train_abs_loss.avg, epoch)
                 self.writer.add_scalar("Loss/train_rel", train_rel_loss.avg, epoch)
-                if self.imu_mode != 'None':
+                if self.imu_mode == 'Average':
                     self.writer.add_scalar("Loss/train_imu", train_imu_loss.avg, epoch)
+                elif self.imu_mode == 'Separate':
+                    self.writer.add_scalar("Loss/train_imu_abs", train_imu_abs_loss.avg, epoch)
+                    self.writer.add_scalar("Loss/train_imu_rel", train_imu_rel_loss.avg, epoch)
 
         # Save final checkpoint
         epoch = self.config['n_epochs']
@@ -385,12 +396,24 @@ def step_feedfwd(data, model, cuda, imu_mode, target=None, criterion=None, optim
         output = model(data_var)
     # print(f'output step fwd {output}')
 
+    # Separate and inference
+    if imu_mode == 'Separate' and train == False:
+        output_og = output[:, :, :6]
+        output_imu = output[:, :, 6:]
+        # output is average
+        # print(f'concat {torch.stack([output_og, output_imu], dim=2)}')
+        average = torch.mean(torch.stack([output_og, output_imu], dim=2), dim=2)
+        # print(average, output_og, output_imu)
+        output = average
+
     if criterion is not None:
         imu_data = None
         if imu_mode != 'None':
             target, imu_data = target
         if cuda:
             target = target.cuda(non_blocking=True)
+            if imu_mode != 'None':
+                imu_data = imu_data.cuda(non_blocking=True)
 
         target_var = Variable(target, requires_grad=False)
         with torch.set_grad_enabled(train):

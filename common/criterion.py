@@ -142,6 +142,7 @@ class MapNetWithIMUCriterion(nn.Module):
     """
     :param pred: N x T x 6
     :param targ: N x T x 6
+    :param imu: N x T x 7 (Orientation still in quaternion form)
     :return:
     """
     # absolute pose loss
@@ -166,6 +167,7 @@ class MapNetWithIMUCriterion(nn.Module):
     # print(f'targ_vos {targ_vos}, shape {targ_vos.size()}')
     # print(f'imu_orientations {imu_orientations}')
     # print(f'target ori {pose_utils.qexp_t(targ_imu.view(-1, *s[2:])[:, 3:])}')
+
     imu_orientation_logq = []
     for imu_orient in imu_orientations:
         pvos = pose_utils.qlog_t(imu_orient)
@@ -175,7 +177,6 @@ class MapNetWithIMUCriterion(nn.Module):
     # print(f'cat {torch.cat((imu_translations, imu_orientation_logq), dim=2)}')
 
     targ_imu = pose_utils.calc_vos_simple(torch.cat((imu_translations, imu_orientation_logq), dim=2))
-    targ_imu = targ_imu.cuda(non_blocking=True)
 
     # imu_translations = imu_translations.cuda(non_blocking=True)
     # imu_orientation_logq = imu_orientation_logq.cuda(non_blocking=True)
@@ -244,84 +245,86 @@ class MapNetWithIMUCriterionSeparate(nn.Module):
 
   def forward(self, pred, targ, imu):
     """
-    :param pred: N x T x 6
+    :param pred: N x T x 12
     :param targ: N x T x 6
+    :param imu: N x T x 7 (Orientation still in quaternion form)
     :return:
     """
-    # absolute pose loss
-    s = pred.size()
+    pred_og = pred[:, :, :6]
+    pred_imu = pred[:, :, 6:]
+    # print(f'pred_og {pred_og}')
+    # print(f'pred_imu {pred_imu}')
+    
+    # print(f'targ {targ}')
+    # print(f'targ_imu {imu}')
+
+    # absolute pose loss with absolute gt poses
+    s = pred_og.size()
     s_targ = targ.size()
     abs_loss =\
-      torch.exp(-self.sax) * self.t_loss_fn(pred.view(-1, *s[2:])[:, :3],
+      torch.exp(-self.sax) * self.t_loss_fn(pred_og.view(-1, *s[2:])[:, :3],
                                             targ.view(-1, *s_targ[2:])[:, :3]) + \
       self.sax + \
-      torch.exp(-self.saq) * self.q_loss_fn(pred.view(-1, *s[2:])[:, 3:6],
+      torch.exp(-self.saq) * self.q_loss_fn(pred_og.view(-1, *s[2:])[:, 3:],
                                             targ.view(-1, *s_targ[2:])[:, 3:]) + \
       self.saq
 
     # relative pose loss 
-    pred_vos = pose_utils.calc_vos_simple(pred[:, :, :6])
+    pred_vos = pose_utils.calc_vos_simple(pred_og)
     targ_vos = pose_utils.calc_vos_simple(targ) 
-    pred_imu_simple = pose_utils.calc_vos_simple(pred[:, :, 6:])
-    pred_imu = pose_utils.calc_vos(pred[:, :, 6:]) 
-    targ_imu = pose_utils.calc_vos(targ) 
 
-    imu_translations = []
-    imu_ori_shifts = []
-    for j in range(len(imu)):
-        batch = imu[j]
-        target_batch = targ[j]
-        imu_batch_translations = []
-        imu_batch_ori_shifts = []
-        for i in range(1, len(batch)):
-            timestep = (batch[i][-1] - batch[i-1][-1])/1e9
-            cur_accel = batch[i-1][0:3]
-            initial_velocity = batch[i-1][3:6]
-            initial_orientation = pose_utils.qexp_t(target_batch[i-1][3:].unsqueeze(0)).cpu()
-            angular_vel = batch[i-1][6:9]
-            trans = get_translation_from_imu(initial_velocity, cur_accel, timestep)
-            new_ori = integrate_angular_velocity(initial_orientation, angular_vel, timestep)
-            new_ori = torch.from_numpy(new_ori).type(torch.FloatTensor)
-            # print(new_ori)
-            # print(pose_utils.qexp_t(target_batch[i][3:].unsqueeze(0)))
-            ori_shift = pose_utils.calc_relative_ori(initial_orientation, new_ori)
-            imu_batch_translations.append(trans.type(torch.FloatTensor))
-            imu_batch_ori_shifts.append(ori_shift.squeeze().type(torch.FloatTensor))
-
-        imu_batch_translations = torch.stack(imu_batch_translations, dim=0)
-        imu_batch_ori_shifts = torch.stack(imu_batch_ori_shifts, dim=0)
-        imu_translations.append(imu_batch_translations)
-        imu_ori_shifts.append(imu_batch_ori_shifts)
-
-    imu_translations = torch.stack(imu_translations, dim=0).cuda(non_blocking=True)
-    imu_ori_shifts = torch.stack(imu_ori_shifts, dim=0).cuda(non_blocking=True)
-
-    # print(f'imu trans {imu_translations}')
-    # print(f'imu ori {imu_ori_shifts}')
-    # print(f'target ori {targ_imu}')
-
-    # VO loss
     s = pred_vos.size()
-    # print(f'imu {imu_translations.view(-1, 3)[:, :3]}')
     vo_loss = \
       torch.exp(-self.srx) * self.t_loss_fn(pred_vos.view(-1, *s[2:])[:, :3],
-                                            targ_vos.view(-1, *s_targ[2:])[:, :3]) + \
+                                            targ_vos.view(-1, *s[2:])[:, :3]) + \
       self.srx + \
-      torch.exp(-self.srq) * self.q_loss_fn(pred_vos.view(-1, *s[2:])[:, 3:6],
-                                            targ_vos.view(-1, *s_targ[2:])[:, 3:]) + \
+      torch.exp(-self.srq) * self.q_loss_fn(pred_vos.view(-1, *s[2:])[:, 3:],
+                                            targ_vos.view(-1, *s[2:])[:, 3:]) + \
       self.srq
 
-    imu_loss = \
-      torch.exp(-self.srx_imu) * self.t_loss_fn(pred_imu_simple.view(-1, *s[2:])[:, :3],
-                                                imu_translations.view(-1, 3)) + \
+    og_loss = abs_loss + vo_loss
+
+    # absolute pose loss with imu derived absolute gt poses
+    imu_translations = imu[:, :, :3]
+    imu_orientations = imu[:, :, 3:]
+    imu_orientation_logq = []
+    for imu_orient in imu_orientations:
+        pvos = pose_utils.qlog_t(imu_orient)
+        imu_orientation_logq.append(pvos)
+    imu_orientation_logq = torch.stack(imu_orientation_logq, dim=0)
+    imu_targ = torch.cat((imu_translations, imu_orientation_logq), dim=2)
+
+    s = pred_imu.size()
+    s_targ = targ.size()
+    abs_imu_loss =\
+      torch.exp(-self.sax) * self.t_loss_fn(pred_imu.view(-1, *s[2:])[:, :3],
+                                            imu_targ.view(-1, *s_targ[2:])[:, :3]) + \
+      self.sax + \
+      torch.exp(-self.saq) * self.q_loss_fn(pred_imu.view(-1, *s[2:])[:, 3:],
+                                            imu_targ.view(-1, *s_targ[2:])[:, 3:]) + \
+      self.saq
+
+    # relative pose loss with imu derived absolute gt poses
+    imu_pred_vos = pose_utils.calc_vos_simple(pred_imu)
+    imu_targ_vos = pose_utils.calc_vos_simple(imu_targ)
+
+    s = imu_pred_vos.size()
+    vo_imu_loss = \
+      torch.exp(-self.srx) * self.t_loss_fn(imu_pred_vos.view(-1, *s[2:])[:, :3],
+                                            imu_targ_vos.view(-1, *s[2:])[:, :3]) + \
       self.srx + \
-      torch.exp(-self.srq_imu) * self.q_loss_fn(pred_imu.view(-1, *s[2:])[:, 3:],
-                                                imu_ori_shifts.view(-1, 3)) + \
+      torch.exp(-self.srq) * self.q_loss_fn(imu_pred_vos.view(-1, *s[2:])[:, 3:],
+                                            imu_targ_vos.view(-1, *s[2:])[:, 3:]) + \
       self.srq
+
+    imu_loss = abs_imu_loss + vo_imu_loss
 
     # total loss
-    loss = abs_loss + vo_loss + imu_loss
-    return loss
+    # print(f'imu weight {self.imu_weight}')
+    loss = og_loss + imu_loss
+
+    return loss, (abs_loss.item(), vo_loss.item(), abs_imu_loss.item(), vo_imu_loss.item())
+
 class MapNetOnlineCriterion(nn.Module):
   def __init__(self, t_loss_fn=nn.L1Loss(), q_loss_fn=nn.L1Loss(), sax=0.0,
                saq=0.0, srx=0, srq=0.0, learn_beta=False, learn_gamma=False,

@@ -90,27 +90,25 @@ class PoseNetWithImuOutput(nn.Module):
     self.fc_xyz_imu  = nn.Linear(feat_dim, 3)
     self.fc_wpqr_imu = nn.Linear(feat_dim, 3)
     if filter_nans:
-      self.fc_wpqr.register_backward_hook(hook=filter_hook)
+        self.fc_wpqr.register_backward_hook(hook=filter_hook)
 
     # initialize
     if pretrained:
-      init_modules = [self.feature_extractor.fc, self.fc_xyz, self.fc_wpqr, self.fc_xyz_imu, self.fc_wpqr_imu]
+        init_modules = [self.feature_extractor.fc, self.fc_xyz, self.fc_wpqr, self.fc_xyz_imu, self.fc_wpqr_imu]
     else:
-      init_modules = self.modules()
+        init_modules = self.modules()
 
     for m in init_modules:
-      if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-        nn.init.kaiming_normal_(m.weight.data)
-        if m.bias is not None:
-          nn.init.constant_(m.bias.data, 0)
+        if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+            nn.init.kaiming_normal_(m.weight.data)
+            if m.bias is not None:
+                nn.init.constant_(m.bias.data, 0)
 
   def forward(self, x):
-    print(f'input to the feature extractor {x}')
     x = self.feature_extractor(x)
-    print(f'output of feature extractor {x}')
     x = F.relu(x)
     if self.droprate > 0:
-      x = F.dropout(x, p=self.droprate)
+        x = F.dropout(x, p=self.droprate)
 
     xyz  = self.fc_xyz(x)
     wpqr = self.fc_wpqr(x)
