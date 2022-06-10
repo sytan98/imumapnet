@@ -165,6 +165,12 @@ class Trainer(object):
         torch.manual_seed(self.config['seed'])
         if self.config['cuda']:
             torch.cuda.manual_seed(self.config['seed'])
+            
+        # activate GPUs
+        if self.config['cuda']:
+            self.model.cuda()
+            self.train_criterion.cuda()
+            self.val_criterion.cuda()
 
         self.start_epoch = int(0)
         if checkpoint_file:
@@ -199,11 +205,6 @@ class Trainer(object):
         else:
             self.val_loader = None
 
-        # activate GPUs
-        if self.config['cuda']:
-            self.model.cuda()
-            self.train_criterion.cuda()
-            self.val_criterion.cuda()
 
     def save_checkpoint(self, epoch):
         filename = osp.join(self.logdir, 'epoch_{:03d}.pth.tar'.format(epoch))
