@@ -22,7 +22,6 @@ from common.train import Trainer
 from common.optimizer import Optimizer
 from common.criterion import (MapNetWithIMUCriterionSeparate, PoseNetCriterion, MapNetCriterion, MapNetWithIMUCriterion,
                               MapNetOnlineCriterion)
-from common.data_utils import get_imagenet_mean_std
 from models.posenet import PoseNet, MapNet, PoseNetWithImuOutput
 from dataset_loaders.composite import MF, MFOnline
 
@@ -43,6 +42,12 @@ def parse_arguments():
     parser.add_argument('--noisy_training',  type=str,
                         choices=('None', 'v1', 'v2'),
                         help='Use noisy training set')
+    parser.add_argument('--loss',  type=str,
+                        choices=('L1', 'SmoothL1', 'MSE'),
+                        help='choose loss function')
+    parser.add_argument('--average_method', type=str, default='simple',
+                        choices=('Simple', 'Interpolate'),
+                        help='Method to average predictions for imu_mode "Separate"')
     parser.add_argument('--scene', type=str, help='Scene name')
     parser.add_argument('--config_file', type=str, help='configuration file')
     parser.add_argument('--model', choices=('posenet', 'mapnet', 'mapnet++'),
@@ -117,6 +122,10 @@ if __name__ == '__main__':
     elif args.model.find('mapnet') >= 0:
         kwargs = dict(sax=sax, saq=saq, srx=srx, srq=srq, learn_beta=args.learn_beta,
                       learn_gamma=args.learn_gamma)
+        if args.loss == "SmoothL1":
+            kwargs = dict(kwargs, t_loss_fn=nn.SmoothL1Loss(), q_loss_fn=nn.SmoothL1Loss())
+        elif args.loss == "MSE":
+            kwargs = dict(kwargs, t_loss_fn=nn.MSELoss(), q_loss_fn=nn.MSELoss())
         if args.model.find('++') >= 0:
             kwargs = dict(kwargs, gps_mode=(vo_lib == 'gps'))
             train_criterion = MapNetOnlineCriterion(**kwargs)
@@ -217,7 +226,8 @@ if __name__ == '__main__':
         experiment_name = '{:s}_learn_gamma'.format(experiment_name)
     experiment_name += args.suffix
     trainer = Trainer(model, optimizer, train_criterion, args.config_file,
-                      experiment_name, train_set, val_set, device=args.device, imu_mode=args.imu_mode,
+                      experiment_name, train_set, val_set, device=args.device, 
+                      imu_mode=args.imu_mode, average_method=args.average_method,
                       checkpoint_file=args.checkpoint,
                       resume_optim=args.resume_optim, val_criterion=val_criterion,)
     lstm = args.model == 'vidloc'

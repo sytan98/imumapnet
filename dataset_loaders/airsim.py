@@ -15,7 +15,7 @@ import torch
 from torchvision.utils import make_grid
 import torchvision.transforms as transforms
 
-from common.pose_utils import process_poses, process_poses_from_quartenion
+from common.pose_utils import process_poses_from_quartenion
 from dataset_loaders.utils import load_image
 
 

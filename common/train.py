@@ -12,14 +12,13 @@ import configparser
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-from common import Logger
+from common import Logger, pose_utils
 
 import torch
 import torch.utils.data
 from torch.utils.data.dataloader import default_collate
 import torch.cuda
 from torch.autograd import Variable
-
 
 def load_state_dict(model, state_dict):
     """
@@ -68,7 +67,7 @@ def safe_collate(batch):
 
 class Trainer(object):
     def __init__(self, model, optimizer, train_criterion, config_file, experiment,
-                 train_dataset, val_dataset, device, imu_mode, checkpoint_file=None,
+                 train_dataset, val_dataset, device, imu_mode, average_method, checkpoint_file=None,
                  resume_optim=False, val_criterion=None):
         """
         General purpose training script
@@ -97,6 +96,7 @@ class Trainer(object):
         if 'CUDA_VISIBLE_DEVICES' not in os.environ:
             os.environ['CUDA_VISIBLE_DEVICES'] = device
         self.imu_mode = imu_mode
+        self.average_method = average_method
 
         # read the config
         settings = configparser.ConfigParser()
@@ -240,7 +240,7 @@ class Trainer(object):
                     if lstm:
                         loss, _ = step_lstm(data, self.model, self.config['cuda'], **kwargs)
                     else:
-                        loss, _, loss_breakdown = step_feedfwd(data, self.model, self.config['cuda'], self.imu_mode, 
+                        loss, _, loss_breakdown = step_feedfwd(data, self.model, self.config['cuda'], self.imu_mode, self.average_method, 
                                                **kwargs)
 
                     val_loss.update(loss)
@@ -311,7 +311,7 @@ class Trainer(object):
                 if lstm:
                     loss, _ = step_lstm(data, self.model, self.config['cuda'], **kwargs)
                 else:
-                    loss, _, loss_breakdown = step_feedfwd(data, self.model, self.config['cuda'], self.imu_mode, 
+                    loss, _, loss_breakdown = step_feedfwd(data, self.model, self.config['cuda'], self.imu_mode, self.average_method,
                                                             **kwargs)
                 train_batch_time.update(time.time() - end)
                 train_loss.update(loss)
@@ -372,7 +372,7 @@ class Trainer(object):
         #     self.vis.save(envs=[self.vis_env])
         self.writer.close()
 
-def step_feedfwd(data, model, cuda, imu_mode, target=None, criterion=None, optim=None,
+def step_feedfwd(data, model, cuda, imu_mode, average_method, target=None, criterion=None, optim=None,
                  train=True, max_grad_norm=0.0):
     """
     training/validation step for a feedforward NN
@@ -399,13 +399,22 @@ def step_feedfwd(data, model, cuda, imu_mode, target=None, criterion=None, optim
 
     # Separate and inference
     if imu_mode == 'Separate' and train == False:
-        output_og = output[:, :, :6]
-        output_imu = output[:, :, 6:]
         # output is average
-        # print(f'concat {torch.stack([output_og, output_imu], dim=2)}')
-        average = torch.mean(torch.stack([output_og, output_imu], dim=2), dim=2)
-        # print(average, output_og, output_imu)
-        output = average
+        if average_method == 'Interpolate':
+            output_trans_og = output[:, :, :3]
+            output_orient_og = output[:, :, 3:6]
+            output_trans_imu = output[:, :, 6:9]
+            output_orient_imu = output[:, :, 9:]
+
+            average = torch.mean(torch.stack([output_trans_og, output_trans_imu], dim=2), dim=2)
+            imu_orientations = torch.stack([output_orient_og, output_orient_imu], dim=2)
+            imu_orientation_logq = pose_utils.interpolate_quat(imu_orientations)
+            output = torch.cat((average, imu_orientation_logq), dim=2)
+        else:
+            output_og = output[:, :, :6]
+            output_imu = output[:, :, 6:]
+            average = torch.mean(torch.stack([output_og, output_imu], dim=2), dim=2)
+            output = average
 
     if criterion is not None:
         imu_data = None

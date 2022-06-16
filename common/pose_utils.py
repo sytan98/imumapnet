@@ -9,6 +9,7 @@ import scipy.linalg as slin
 
 import transforms3d.quaternions as txq
 import transforms3d.euler as txe
+from pyquaternion import Quaternion
 
 # see for formulas:
 # https://ocw.mit.edu/courses/electrical-engineering-and-computer-science/6-801-machine-vision-fall-2004/readings/quaternions.pdf
@@ -189,17 +190,6 @@ def calc_vo_logq(p0, p1):
     return torch.cat((vos[:, :3], vos_q), dim=1)
 
 
-def calc_relative_ori(q0, q1):
-    """
-    VO (in the p0 frame) (logq)
-    :param p0: N x 7
-    :param p1: N x 7
-    :return: N-1 x 6
-    """
-    # q0 = qexp_t(q0)
-    # q1 = qexp_t(q1)
-    return qlog_t(qmult(qinv(q0), q1))
-
 def calc_vo_relative(p0, p1):
     """
     calculates VO (in the world frame) from 2 poses
@@ -333,6 +323,58 @@ def calc_vos_safe_fc(poses):
     vos = torch.stack(vos, dim=0)
     return vos
 
+## IMUMapNet Extension
+def convert_batch_quat_to_logq(quats):
+    """
+    converts a batch of orientations represented as 4D quaternions to log q.
+    """
+    logq = []
+    for quat in quats:
+        logq.append(qlog_t(quat))
+    return torch.stack(logq, dim=0)
+
+def interpolate_quat(quats):
+    imu_orientation_logq = []
+    for batch in quats:
+        interpolated_quat = []
+        for samples in batch:
+            pvos = qexp_t(samples)
+            pvos_og, pvos_imu = pvos
+            q0 = Quaternion(pvos_og.cpu().numpy())
+            q1 = Quaternion(pvos_imu.cpu().numpy())
+            q  = Quaternion.slerp(q0, q1).elements
+            interpolated_quat.append(torch.from_numpy(q).cuda())
+        q_log = qlog_t(torch.stack(interpolated_quat, dim=0))
+        imu_orientation_logq.append(q_log)
+    return torch.stack(imu_orientation_logq)
+
+def process_poses_from_quartenion(t_in, q_in, mean_t, std_t, align_R, align_t, align_s):
+    """
+    processes the 1x12 raw pose from dataset by aligning and then normalizing
+    :param poses_in: N x 12
+    :param mean_t: 3
+    :param std_t: 3
+    :param align_R: 3 x 3
+    :param align_t: 3
+    :param align_s: 1
+    :return: processed poses (translation + quaternion) N x 7
+    """
+    poses_out = np.zeros((len(t_in), 6))
+    poses_out[:, 0:3] = t_in
+
+    # align
+    for i in range(len(poses_out)):
+        q = q_in[i]
+        q *= np.sign(q[0])  # constrain to hemisphere
+        q = qlog(q)
+        poses_out[i, 3:] = q
+        t = poses_out[i, :3] - align_t
+        poses_out[i, :3] = align_s * np.dot(align_R, t[:, np.newaxis]).squeeze()
+
+    # normalize translation
+    poses_out[:, :3] -= mean_t
+    poses_out[:, :3] /= std_t
+    return poses_out
 
 ## NUMPY
 def qlog(q):
@@ -377,35 +419,6 @@ def process_poses(poses_in, mean_t, std_t, align_R, align_t, align_s):
     for i in range(len(poses_out)):
         R = poses_in[i].reshape((3, 4))[:3, :3]
         q = txq.mat2quat(np.dot(align_R, R))
-        q *= np.sign(q[0])  # constrain to hemisphere
-        q = qlog(q)
-        poses_out[i, 3:] = q
-        t = poses_out[i, :3] - align_t
-        poses_out[i, :3] = align_s * np.dot(align_R, t[:, np.newaxis]).squeeze()
-
-    # normalize translation
-    poses_out[:, :3] -= mean_t
-    poses_out[:, :3] /= std_t
-    return poses_out
-
-
-def process_poses_from_quartenion(t_in, q_in, mean_t, std_t, align_R, align_t, align_s):
-    """
-    processes the 1x12 raw pose from dataset by aligning and then normalizing
-    :param poses_in: N x 12
-    :param mean_t: 3
-    :param std_t: 3
-    :param align_R: 3 x 3
-    :param align_t: 3
-    :param align_s: 1
-    :return: processed poses (translation + quaternion) N x 7
-    """
-    poses_out = np.zeros((len(t_in), 6))
-    poses_out[:, 0:3] = t_in
-
-    # align
-    for i in range(len(poses_out)):
-        q = q_in[i]
         q *= np.sign(q[0])  # constrain to hemisphere
         q = qlog(q)
         poses_out[i, 3:] = q
