@@ -8,7 +8,6 @@ from models.posenet import PoseNet, MapNet, PoseNetWithImuOutput
 from common.train import load_state_dict, step_feedfwd
 from common.pose_utils import optimize_poses, quaternion_angular_error, qexp, \
     calc_vos_safe_fc, calc_vos_safe
-from common.data_utils import get_imagenet_mean_std
 from dataset_loaders.composite import MF
 import argparse
 import os
@@ -42,6 +41,9 @@ def parse_arguments():
     parser.add_argument('--imu_mode', type=str, default='None',
                         choices=('None', 'Average', 'Separate', 'Position', 'Orientation'),
                         help='imu incorporation')
+    parser.add_argument('--average_method', type=str, default='simple',
+                        choices=('Simple', 'Interpolate'),
+                        help='Method to average predictions for imu_mode "Separate"')
     parser.add_argument('--scene', type=str, help='Scene name')
     parser.add_argument('--weights', type=str, help='trained weights to load')
     parser.add_argument('--model', choices=('posenet', 'mapnet', 'mapnet++'),
@@ -199,7 +201,7 @@ if __name__ == '__main__':
         idx = idx[len(idx) // 2]
 
         # output : 1 x 6 or 1 x STEPS x 6
-        _, output, _ = step_feedfwd(data, model, CUDA, args.imu_mode, train=False)
+        _, output, _ = step_feedfwd(data, model, CUDA, args.imu_mode, args.average_method, train=False)
         s = output.size()
         s_targ = target.size()
         output = output.cpu().data.numpy().reshape((-1, s[-1]))[:, :6]
