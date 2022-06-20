@@ -156,7 +156,7 @@ if __name__ == '__main__':
                           weight_decay=weight_decay, **optim_config)
 
     data_dir = osp.join('..', 'data', args.dataset)
-    stats_file = osp.join(data_dir, 'stats.txt')
+    stats_file = osp.join(data_dir, args.scene, 'stats.txt')
     stats = np.loadtxt(stats_file)
 
     crop_size_file = osp.join(data_dir, 'crop_size.txt')

@@ -24,23 +24,21 @@ def safe_collate(batch):
 
 
 def get_dataset_mean_std(train : bool):
-    seq = 'building_10fps'
+    seq = 'campus_v2'
     mode = 0
     num_workers = 0
 
     data_dir = osp.join('..', 'data', 'AirSim')
-    stats_file = osp.join(data_dir, 'stats.txt')
+    stats_file = osp.join(data_dir, seq, 'stats.txt')
     stats = np.loadtxt(stats_file)
     print(stats)
     transform = transforms.Compose([
         transforms.Resize(256),
         transforms.CenterCrop(224),
         transforms.ToTensor(),
-        transforms.Normalize(mean=stats[0], 
-                             std= stats[1])
     ])
-    dset = AirSim(seq, 'D:/Imperial/FYP/captured_data/airsim_drone_mode', train, transform,
-                       mode=mode, simulate_noise=False)
+    dset = AirSim(seq, 'D:/Imperial/FYP/captured_data', train, transform,
+                       mode=mode, simulate_noise="None")
     print('Loaded AirSim sequence {:s}, length = {:d}'.format(seq,
                                                                len(dset)))
 
@@ -77,15 +75,15 @@ def get_dataset_mean_std(train : bool):
 
 def resize_image_and_save(train : bool):
     train_or_val = 'train' if train else 'val'
-    seq = 'building_10fps'
+    seq = 'campus_v2'
     mode = 0
     num_workers = 0
     transform = transforms.Compose([
         transforms.Resize(256),
         transforms.ToTensor()
     ])
-    dset = AirSim(seq, 'D:/Imperial/FYP/captured_data/airsim_drone_mode', train, transform,
-                       mode=mode, simulate_noise=False)
+    dset = AirSim(seq, 'D:/Imperial/FYP/captured_data', train, transform,
+                       mode=mode, simulate_noise="None")
     print('Loaded AirSim sequence {:s}, length = {:d}'.format(seq,
                                                                len(dset)))
 

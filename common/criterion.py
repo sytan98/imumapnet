@@ -161,8 +161,8 @@ class MapNetWithIMUCriterion(nn.Module):
     imu_orientations = imu[:, :, 3:]
 
     imu_orientation_logq = pose_utils.convert_batch_quat_to_logq(imu_orientations)
-    imu_vos = torch.cat((imu_translations, imu_orientation_logq), dim=2)
-    targ_imu = pose_utils.calc_vos_simple(imu_vos)
+    imu_targ_abs = torch.cat((imu_translations, imu_orientation_logq), dim=2)
+    targ_imu = pose_utils.calc_vos_simple_imu(imu_targ_abs, targ)
 
     # Relative Pose loss
     s = pred_vos.size()
@@ -266,7 +266,7 @@ class MapNetWithIMUCriterionSeparate(nn.Module):
 
     # relative pose loss with imu derived absolute gt poses
     imu_pred_vos = pose_utils.calc_vos_simple(pred_imu)
-    imu_targ_vos = pose_utils.calc_vos_simple(imu_targ_abs)
+    imu_targ_vos = pose_utils.calc_vos_simple_imu(imu_targ_abs, targ)
 
     s = imu_pred_vos.size()
     vo_imu_loss = \

@@ -324,6 +324,22 @@ def calc_vos_safe_fc(poses):
     return vos
 
 ## IMUMapNet Extension
+def calc_vos_simple_imu(imu_derived_poses, original_targ):
+    """
+    calculate the VOs, from a list of consecutive poses
+    :param poses: N x T x 6 (can be 6 or 7)
+    :return: N x (T-1) x 6 (can be 6 or 7)
+    """
+    vos = []
+    for p in range(len(imu_derived_poses)): # Iterate through batches
+        pvos = [imu_derived_poses[p][i + 1].unsqueeze(0) - \
+                original_targ[p][i].unsqueeze(0) \
+                for i in range(len(original_targ[p]) - 1)]
+        vos.append(torch.cat(pvos, dim=0))
+    vos = torch.stack(vos, dim=0)
+
+    return vos
+
 def convert_batch_quat_to_logq(quats):
     """
     converts a batch of orientations represented as 4D quaternions to log q.
