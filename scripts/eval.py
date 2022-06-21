@@ -116,7 +116,7 @@ if __name__ == '__main__':
         sys.exit(-1)
 
     data_dir = osp.join('..', 'data', args.dataset)
-    stats_filename = osp.join(data_dir, 'stats.txt')
+    stats_filename = osp.join(data_dir, args.scene, 'stats.txt')
     stats = np.loadtxt(stats_filename)
 
     # transformer
