@@ -83,7 +83,9 @@ class PoseNetWithImuOutput(nn.Module):
     self.feature_extractor = feature_extractor
     self.feature_extractor.avgpool = nn.AdaptiveAvgPool2d(1)
     fe_out_planes = self.feature_extractor.fc.in_features
-    self.feature_extractor.fc = nn.Linear(fe_out_planes, feat_dim)
+    self.feature_extractor.fc = nn.Identity()
+    self.feature_extractor_fc = nn.Linear(fe_out_planes, feat_dim)
+    self.feature_extractor_imu_fc = nn.Linear(fe_out_planes, feat_dim)
 
     self.fc_xyz  = nn.Linear(feat_dim, 3)
     self.fc_wpqr = nn.Linear(feat_dim, 3)
@@ -94,7 +96,7 @@ class PoseNetWithImuOutput(nn.Module):
 
     # initialize
     if pretrained:
-        init_modules = [self.feature_extractor.fc, self.fc_xyz, self.fc_wpqr, self.fc_xyz_imu, self.fc_wpqr_imu]
+        init_modules = [self.feature_extractor_fc, self.feature_extractor_imu_fc, self.fc_xyz, self.fc_wpqr, self.fc_xyz_imu, self.fc_wpqr_imu]
     else:
         init_modules = self.modules()
 
@@ -105,15 +107,22 @@ class PoseNetWithImuOutput(nn.Module):
                 nn.init.constant_(m.bias.data, 0)
 
   def forward(self, x):
-    x = self.feature_extractor(x)
+    feature = self.feature_extractor(x)
+    x = self.feature_extractor_fc(feature)
     x = F.relu(x)
     if self.droprate > 0:
         x = F.dropout(x, p=self.droprate)
 
+    x_imu = self.feature_extractor_imu_fc(feature)
+    x_imu = F.relu(x_imu)
+    if self.droprate > 0:
+        x_imu = F.dropout(x_imu, p=self.droprate)
+
     xyz  = self.fc_xyz(x)
     wpqr = self.fc_wpqr(x)
-    xyz_imu  = self.fc_xyz_imu(x)
-    wpqr_imu = self.fc_wpqr_imu(x)
+    xyz_imu  = self.fc_xyz_imu(x_imu)
+    wpqr_imu = self.fc_wpqr_imu(x_imu)
+
     return torch.cat((xyz, wpqr, xyz_imu, wpqr_imu), 1)
 
 class MapNet(nn.Module):
