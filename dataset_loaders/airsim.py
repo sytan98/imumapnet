@@ -63,7 +63,6 @@ class AirSim(data.Dataset):
 
         t_gt, q_gt = [], []
         self.relative_imu = []
-        self.raw_imu_data = []
         with open(pairs_txt, 'r') as f:
             for line in f.readlines()[1::]:
                 chunks = line.rstrip().split(' ')
@@ -72,11 +71,6 @@ class AirSim(data.Dataset):
                 q_gt.append(np.array([float(chunks[5]), float(chunks[6]), float(chunks[7]), float(chunks[8])]))
                 self.relative_imu.append(torch.tensor([float(chunks[9]), float(chunks[10]), float(chunks[11]), 
                                                        float(chunks[12]), float(chunks[13]),float(chunks[14]),float(chunks[15])]))
-                self.raw_imu_data.append(torch.tensor([
-                                        #   float(chunks[9]), float(chunks[10]), float(chunks[11]),
-                                        #   float(chunks[12]), float(chunks[13]), float(chunks[14]), # gt velocity
-                                        #   float(chunks[21]), float(chunks[22]), float(chunks[23]), # imu angular velocity
-                                          float(chunks[1])])) # timestep
 
         vo_stats = {'R': np.eye(3), 't': np.zeros(3), 's': 1} # No alignment needed
         t_gt = np.vstack(t_gt)

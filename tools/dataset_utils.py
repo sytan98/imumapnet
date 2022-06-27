@@ -2,7 +2,7 @@ import os.path as osp
 import numpy as np
 
 import sys
-sys.path.append("../")
+sys.path.append("../dataset_loaders")
 
 import torch
 import torchvision.transforms as transforms
@@ -23,15 +23,12 @@ def safe_collate(batch):
     return default_collate(batch)
 
 
-def get_dataset_mean_std(train : bool):
-    seq = 'campus_v2'
+def get_dataset_mean_std(train: bool, seq: str):
     mode = 0
     num_workers = 0
 
     data_dir = osp.join('..', 'data', 'AirSim')
-    stats_file = osp.join(data_dir, seq, 'stats.txt')
-    stats = np.loadtxt(stats_file)
-    print(stats)
+
     transform = transforms.Compose([
         transforms.Resize(256),
         transforms.CenterCrop(224),
@@ -53,9 +50,8 @@ def get_dataset_mean_std(train : bool):
     psum    = torch.tensor([0.0, 0.0, 0.0])
     psum_sq = torch.tensor([0.0, 0.0, 0.0])
     length = 0
-    for idx, batch in enumerate(data_loader):
+    for batch in data_loader:
         data = batch[0]
-        # print(mini_batch['img1'].shape)
         psum    += data.sum(dim = [0, 2, 3])
         psum_sq += (data ** 2).sum(dim = [0, 2, 3])
 
@@ -100,5 +96,5 @@ def resize_image_and_save(train : bool):
         save_image(data, f'D:/Imperial/FYP/captured_data/airsim_drone_mode/{seq}/{train_or_val}/resized_images/{idx * 10}.png')
 
 if __name__ == '__main__':
-    get_dataset_mean_std(True)
-    # resize_image_and_save(False)
+    get_dataset_mean_std(True, 'campus_v3')
+    # resize_image_and_save(False, 'campus_v3')
