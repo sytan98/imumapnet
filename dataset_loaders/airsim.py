@@ -22,7 +22,7 @@ from dataset_loaders.utils import load_image
 class AirSim(data.Dataset):
     def __init__(self, scene, data_path, train, transform=None,
                  target_transform=None, mode=0, seed=7, real=False,
-                 skip_images=False, simulate_noise='None'):
+                 skip_images=False, simulate_noise='None', **kwargs):
         """
         :param scene: scene name ['chess', 'pumpkin', ...]
         :param data_path: root 7scenes data directory.
@@ -36,6 +36,7 @@ class AirSim(data.Dataset):
         :param skip_images: If True, skip loading images and return None instead
         :Param simulate_noise: If True, train_noise.txt is used which simulates bad colmap
         """
+        self.skip = kwargs.pop('skip', 1)
         self.mode = mode
         self.transform = transform
         self.target_transform = target_transform
@@ -50,9 +51,9 @@ class AirSim(data.Dataset):
         train_or_val = "train" if train else "val"
         if train:
             if simulate_noise == 'None':
-                airsim_rec_file = f'{train_or_val}_clean.txt'
+                airsim_rec_file = f'{train_or_val}_clean_skip_{self.skip}.txt'
             else:
-                airsim_rec_file = f'{train_or_val}_noisy_{simulate_noise}.txt' 
+                airsim_rec_file = f'{train_or_val}_noisy_{simulate_noise}_skip_{self.skip}.txt' 
         else:
             airsim_rec_file = f'{train_or_val}.txt'
 
@@ -67,10 +68,10 @@ class AirSim(data.Dataset):
             for line in f.readlines()[1::]:
                 chunks = line.rstrip().split(' ')
                 self.c_imgs.append(osp.join(data_root, train_or_val, "images", chunks[0]))
-                t_gt.append(np.array([float(chunks[2]), float(chunks[3]), float(chunks[4])]))
-                q_gt.append(np.array([float(chunks[5]), float(chunks[6]), float(chunks[7]), float(chunks[8])]))
-                self.relative_imu.append(torch.tensor([float(chunks[9]), float(chunks[10]), float(chunks[11]), 
-                                                       float(chunks[12]), float(chunks[13]),float(chunks[14]),float(chunks[15])]))
+                t_gt.append(np.array([float(chunks[1]), float(chunks[2]), float(chunks[3])]))
+                q_gt.append(np.array([float(chunks[4]), float(chunks[5]), float(chunks[6]), float(chunks[7])]))
+                self.relative_imu.append(torch.tensor([float(chunks[8]), float(chunks[9]), float(chunks[10]), 
+                                                       float(chunks[11]), float(chunks[12]),float(chunks[13]),float(chunks[14])]))
 
         vo_stats = {'R': np.eye(3), 't': np.zeros(3), 's': 1} # No alignment needed
         t_gt = np.vstack(t_gt)

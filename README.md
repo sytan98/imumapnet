@@ -39,7 +39,7 @@ The executable script is `scripts/train.py`. Please go to the `scripts` folder t
 
 - Baseline MapNet on `building`:
 
-```
+```	
 $ python train.py \
 --dataset AirSim --scene building_new --data_dir '/content/drive/MyDrive/Colab Notebooks/FYP/datasets' \
 --config_file configs/mapnet.ini --model mapnet --device 0 \

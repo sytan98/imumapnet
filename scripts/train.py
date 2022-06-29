@@ -217,9 +217,10 @@ if __name__ == '__main__':
     # trainer
     config_name = args.config_file.split('/')[-1]
     config_name = config_name.split('.')[0]
-    experiment_name = '{:s}_{:s}_{:s}_{:s}_imu_{:s}_noisy_{:s}'.format(args.dataset, args.scene,
-                                                                args.model, config_name, 
-                                                                args.imu_mode, args.noisy_training)
+    experiment_name = '{:s}_{:s}_{:s}_{:s}_imu_{:s}_noisy_{:s}_skip_{:s}'.format(args.dataset, args.scene,
+                                                                                 args.model, config_name, 
+                                                                                 args.imu_mode, args.noisy_training,
+                                                                                 skip)
     if args.learn_beta:
         experiment_name = '{:s}_learn_beta'.format(experiment_name)
     if args.learn_gamma:

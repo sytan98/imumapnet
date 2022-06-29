@@ -35,7 +35,7 @@ class MF(data.Dataset):
         not a multiple of skip*steps
         """
         self.steps = kwargs.pop('steps', 2)
-        self.skip = kwargs.pop('skip', 1)
+        self.skip = kwargs.get('skip', 1)
         self.variable_skip = kwargs.pop('variable_skip', False)
         self.real = kwargs.pop('real', False)
         self.include_vos = include_vos
