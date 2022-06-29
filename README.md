@@ -68,7 +68,7 @@ The inference script is `scripts/eval.py`. Here are some examples, assuming the 
 $ python eval.py \
 --dataset AirSim --scene building --data_dir '/content/drive/MyDrive/Colab Notebooks/FYP/datasets' \
 --config_file configs/mapnet.ini --model mapnet --output_dir results/ \
---weights logs/AirSim_building_new_mapnet_mapnet_imu_None_noisy_None/epoch_100.pth.tar \
+--weights logs/AirSim_building_mapnet_mapnet_imu_None_noisy_None/epoch_100.pth.tar \
 --val --imu_mode None   \
 --plot_3d
 ```
@@ -78,7 +78,7 @@ $ python eval.py \
 $ python eval.py \
 --dataset AirSim --scene building --data_dir '/content/drive/MyDrive/Colab Notebooks/FYP/datasets' \
 --config_file configs/mapnet.ini --model mapnet --output_dir results/ \
---weights logs/AirSim_building_new_mapnet_mapnet_imu_Separate_noisy_v2/epoch_100.pth.tar \
+--weights logs/AirSim_building_mapnet_mapnet_imu_Separate_noisy_v2/epoch_100.pth.tar \
 --val --imu_mode Separate \
 --average_method Simple
 --plot_3d 
