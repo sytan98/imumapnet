@@ -16,7 +16,7 @@ For this project, two datasets captured using [this code](https://github.com/syt
 - Real-world datasets: campus
 
 The dataset loader ```dataset_loaders/airsim.py``` is used to load for both datasets as they are in the same data format.
-Datasets can be found [here] (https://drive.google.com/drive/folders/1DlQqAXiIvlrzFM5Ruxc_9OD_6XnZcGpf?usp=sharing)
+Datasets can be found [here](https://drive.google.com/drive/folders/1DlQqAXiIvlrzFM5Ruxc_9OD_6XnZcGpf?usp=sharing)
 
 ## Running the code
 Google Colab was used to run the experiments. It runs experiments by using ```scripts/train.py``` and ```scripts/eval.py```. 
@@ -42,7 +42,7 @@ The executable script is `scripts/train.py`. Please go to the `scripts` folder t
 
 ```	
 $ python train.py \
---dataset AirSim --scene building_new --data_dir '/content/drive/MyDrive/Colab Notebooks/FYP/datasets' \
+--dataset AirSim --scene building --data_dir '/content/drive/MyDrive/Colab Notebooks/FYP/datasets' \
 --config_file configs/mapnet.ini --model mapnet --device 0 \
 --imu_mode None \
 --noisy_training None 
@@ -52,7 +52,7 @@ $ python train.py \
 
 ```
 $ python train.py \
---dataset AirSim --scene campus_v3 --data_dir '/content/drive/MyDrive/Colab Notebooks/FYP/datasets' \
+--dataset AirSim --scene campus --data_dir '/content/drive/MyDrive/Colab Notebooks/FYP/datasets' \
 --config_file configs/mapnet.ini --model mapnet --device 0 \
 --imu_mode Average \
 --noisy_training None \
@@ -66,7 +66,7 @@ The inference script is `scripts/eval.py`. Here are some examples, assuming the 
 - Baseline MapNet on `building`:
 ```
 $ python eval.py \
---dataset AirSim --scene building_new --data_dir '/content/drive/MyDrive/Colab Notebooks/FYP/datasets' \
+--dataset AirSim --scene building --data_dir '/content/drive/MyDrive/Colab Notebooks/FYP/datasets' \
 --config_file configs/mapnet.ini --model mapnet --output_dir results/ \
 --weights logs/AirSim_building_new_mapnet_mapnet_imu_None_noisy_None/epoch_100.pth.tar \
 --val --imu_mode None   \
@@ -76,7 +76,7 @@ $ python eval.py \
 - Averaging output MapNet on `building`:
 ```
 $ python eval.py \
---dataset AirSim --scene building_new --data_dir '/content/drive/MyDrive/Colab Notebooks/FYP/datasets' \
+--dataset AirSim --scene building --data_dir '/content/drive/MyDrive/Colab Notebooks/FYP/datasets' \
 --config_file configs/mapnet.ini --model mapnet --output_dir results/ \
 --weights logs/AirSim_building_new_mapnet_mapnet_imu_Separate_noisy_v2/epoch_100.pth.tar \
 --val --imu_mode Separate \
