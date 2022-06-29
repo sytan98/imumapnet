@@ -12,10 +12,11 @@ MapNet uses a Conda environment that makes it easy to install all dependencies.
 
 ## Data
 For this project, two datasets captured using [this code](https://github.com/sytan98/Dataset-Collection-for-Pose-and-IMU) were used in the experiments:
-- Synthetic dataset from AirSim
-- Real-world datasets
+- Synthetic dataset from AirSim: building
+- Real-world datasets: campus
 
 The dataset loader ```dataset_loaders/airsim.py``` is used to load for both datasets as they are in the same data format.
+Datasets can be found [here] (https://drive.google.com/drive/folders/1DlQqAXiIvlrzFM5Ruxc_9OD_6XnZcGpf?usp=sharing)
 
 ## Running the code
 Google Colab was used to run the experiments. It runs experiments by using ```scripts/train.py``` and ```scripts/eval.py```. 
@@ -59,10 +60,8 @@ $ python train.py \
 ```
 
 ### Evaluation
-The trained models for all experiments presented in the paper can be downloaded
-[here]().
-The inference script is `scripts/eval.py`. Here are some examples, assuming
-the models are downloaded in `scripts/logs`. Please go to the `scripts` folder to run the commands.
+The trained models for all experiments presented in the paper can be downloaded [here](https://drive.google.com/drive/folders/1ZPJqqEizp0vR1rkjzIDAdyl4sRTtaArE?usp=sharing).
+The inference script is `scripts/eval.py`. Here are some examples, assuming the models are downloaded in `scripts/logs`. Please go to the `scripts` folder to run the commands.
 
 - Baseline MapNet on `building`:
 ```
